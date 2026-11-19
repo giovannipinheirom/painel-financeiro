@@ -16,6 +16,8 @@ A planilha é lida no navegador. O servidor guarda só o painel já processado (
 
 ## Como colocar no ar (cerca de 15 minutos)
 
+> Quer rodar num servidor próprio (Oracle Cloud, Ubuntu)? Siga [deploy/ORACLE.md](deploy/ORACLE.md).
+
 ### 1. Subir o código para o GitHub
 1. Crie um repositório **privado** no GitHub, por exemplo `painel-financeiro`.
 2. Envie esta pasta inteira para ele. Pelo site, use "Add file → Upload files" e arraste todos os arquivos, incluindo as pastas `api` e `public`.

@@ -109,6 +109,8 @@ function cookies(req) {
   return out;
 }
 function seguro(req) {
+  // COOKIE_SEGURO=0 só para testar pelo IP, sem HTTPS (num VPS)
+  if (process.env.COOKIE_SEGURO === '0') return false;
   const host = String(req.headers.host || '');
   return !/^(localhost|127\.0\.0\.1)(:|$)/.test(host);
 }
