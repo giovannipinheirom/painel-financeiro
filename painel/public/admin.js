@@ -86,7 +86,7 @@ function abrirForm(emp){
   editId = emp? emp.id : null;
   $('mEmpT').textContent = emp? 'Editar empresa' : 'Nova empresa';
   $('iNome').value=emp?.nome||''; $('iCnpj').value=emp?.cnpj||''; $('iCont').value=emp?.contato||'';
-  $('iSenhaCli').value=''; $('iPos').checked = emp ? emp.posicao!==false : true; $('iContas').checked = !!(emp && emp.contas);
+  $('iSenhaCli').value=''; $('iPos').checked = emp ? emp.posicao!==false : true; $('iContas').checked = !!(emp && emp.contas); $('iContratos').checked = !!(emp && emp.contratos);
   const precisa = !emp || !emp.temSenha;
   $('lSenha').textContent = precisa ? 'Senha do cliente *' : 'Nova senha do cliente';
   $('iSenhaCli').placeholder = precisa ? 'mín. 4 caracteres' : 'deixe em branco para manter a atual';
@@ -108,7 +108,7 @@ const senhasNovas = new Map(); // senha recém-definida, só nesta aba, para cop
 $('fEmp').onsubmit = async ev => {
   ev.preventDefault();
   const body={ nome:$('iNome').value.trim(), cnpj:$('iCnpj').value.trim(), contato:$('iCont').value.trim(), cor:corSel,
-    posicao:$('iPos').checked, contas:$('iContas').checked, senha:$('iSenhaCli').value.trim() };
+    posicao:$('iPos').checked, contas:$('iContas').checked, contratos:$('iContratos').checked, senha:$('iSenhaCli').value.trim() };
   if(!body.nome) return;
   if(body.senha && body.senha.length<4) return toast('A senha precisa ter pelo menos 4 caracteres.');
   $('bSave').disabled=true;
@@ -116,7 +116,7 @@ $('fEmp').onsubmit = async ev => {
     if(editId){
       st.emp = await api('empresas?id='+editId,{method:'PUT', body});
       if(body.senha) senhasNovas.set(editId, body.senha);
-      st.rendered=null; cabecalho(); await carregarContas(); escolherVersao(); toast(body.senha?'Empresa atualizada. Senha nova ativa.':'Empresa atualizada');
+      st.rendered=null; cabecalho(); await carregarContas(); await carregarContratos(); escolherVersao(); toast(body.senha?'Empresa atualizada. Senha nova ativa.':'Empresa atualizada');
     } else {
       const e = await api('empresas',{method:'POST', body}); if(body.senha) senhasNovas.set(e.id, body.senha);
       location.hash='e-'+e.id; toast('Empresa cadastrada. Agora arraste a planilha.');
@@ -135,7 +135,7 @@ $('bDelEmp').onclick = async () => {
 
 /* ---------- página da empresa ---------- */
 function fecharEmpresa(){
-  st.seq++; Object.assign(st,{emp:null, rels:[], relId:null, model:null, rendered:null, contas:[], calMes:mesAtual()});
+  st.seq++; Object.assign(st,{emp:null, rels:[], relId:null, model:null, rendered:null, contas:[], contratos:[], calMes:mesAtual()});
   charts.forEach(c=>c.destroy()); charts=[]; REPORT_EL.innerHTML=''; $('shareBox').hidden=true; showErr('');
 }
 async function abrirEmpresa(id){
@@ -145,7 +145,7 @@ async function abrirEmpresa(id){
   setEmpty('Carregando painel…',''); $('histList').innerHTML='<li class="none">Carregando…</li>';
   try{
     const emp = await api('empresas?id='+id); if(seq!==st.seq) return;
-    st.emp=emp; cabecalho(); await carregarContas(); await carregarHistorico();
+    st.emp=emp; cabecalho(); await carregarContas(); await carregarContratos(); await carregarHistorico();
   }catch(e){
     if(seq!==st.seq || e.silent) return;
     $('eNome').textContent='Empresa não encontrada'; setEmpty('Não consegui abrir esta empresa', e.message); $('histList').innerHTML='';
@@ -157,8 +157,9 @@ function cabecalho(){
   $('eMeta').textContent=[e.cnpj, e.contato, e.ultimo?'atualizado em '+dataBR(e.ultimo.enviadoEm):null].filter(Boolean).join(' · ');
   if(!e.temSenha){ const w=document.createElement('span'); w.className='warn'; w.textContent='sem senha: o cliente não consegue abrir'; $('eMeta').append(' ', w); }
   REPORT_OPTS.posicao = e.posicao!==false;
-  REPORT_OPTS.extra = e.contas ? 1 : 0;
+  REPORT_OPTS.extra = (e.contas ? 1 : 0) + (e.contratos ? 1 : 0);
   $('contasBox').hidden = !e.contas;
+  $('contratosBox').hidden = !e.contratos;
   document.title=e.nome+' · Evolução Financeira';
   if(!$('shareBox').hidden) preencherShare();
 }
@@ -184,7 +185,7 @@ async function escolherVersao(){
   if(!st.rels.length){
     $('tbar').hidden=true; charts.forEach(c=>c.destroy()); charts=[]; REPORT_EL.innerHTML=''; st.rendered=null; st.model=null;
     setEmpty('Nenhuma planilha ainda','Arraste a planilha de conciliação no quadro acima para montar o painel.');
-    return desenharCalendario();
+    return desenharExtras();
   }
   if(!st.relId || !st.rels.some(r=>r.id===st.relId)) st.relId=st.rels[0].id;
   desenharHistorico();
@@ -202,7 +203,7 @@ async function escolherVersao(){
     setEmpty(null); $('tbar').hidden=false; st.rendered=id+'|'+EMP_NOME; redesenhar();
   }catch(e){ if(!e.silent){ setEmpty('Não consegui abrir esta versão', e.message); $('tbar').hidden=true; } }
 }
-function redesenhar(){ if(st.model) render(st.model, st.mode, st.m); desenharCalendario(); }
+function redesenhar(){ if(st.model) render(st.model, st.mode, st.m); desenharExtras(); }
 $('mode').onclick = e => { const b=e.target.closest('button'); if(!b) return; st.mode=b.dataset.m; [...$('mode').children].forEach(x=>x.classList.toggle('on',x===b)); redesenhar(); };
 $('month').onchange = e => { st.m=+e.target.value; redesenhar(); };
 $('bPdf').onclick = () => window.print();
@@ -372,9 +373,97 @@ function desenharCalendario(){
   if(!st.emp) return;
   const velho = REPORT_EL.querySelector('.cal-page');
   if(!st.emp.contas){ if(velho) velho.remove(); return; }
-  anexarCalendario(st.contas, st.calMes || mesAtual());
+  anexarCalendario(st.contas.concat(st.emp.contratos ? parcelasNoCalendario(st.contratos) : []), st.calMes || mesAtual());
 }
+function desenharExtras(){ anexarContratos(st.emp && st.emp.contratos ? st.contratos : null); desenharCalendario(); }
 REPORT_EL.addEventListener('click', e => {
   const b = e.target.closest('[data-cal]'); if(!b) return;
   const d = +b.dataset.cal; st.calMes = d===0 ? mesAtual() : mesMais(st.calMes||mesAtual(), d); desenharCalendario();
 });
+
+
+/* ---------- contratos ---------- */
+async function carregarContratos(){
+  st.contratos = [];
+  if(st.emp && st.emp.contratos){ try{ st.contratos = await api('contratos?empresa='+st.emp.id); }catch(e){ falha(e); } }
+  desenharContratos();
+}
+const dataBRc = iso => iso.split('-').reverse().join('/');
+function mudouContratos(){ desenharContratos(); desenharExtras(); }
+function desenharContratos(){
+  const box=$('ctrLista'); box.innerHTML='';
+  const { lista } = resumoContratos(st.contratos);
+  const saldo = lista.reduce((t,c)=>t+c.saldo,0);
+  $('ctrResumo').textContent = st.contratos.length ? `${lista.filter(c=>c.faltam).length} ativo(s) · falta pagar ${curto(saldo)}` : 'nenhum contrato cadastrado';
+  if(!st.contratos.length) box.innerHTML='<div class="nodata" style="margin-top:10px">Clique em "+ Novo contrato" para começar.</div>';
+  const hoje=hojeISO();
+  st.contratos.forEach((c,k)=>{
+    c.parcelas.sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
+    const r=lista[k];
+    const card=document.createElement('div'); card.className='ctrcard'; card.style.borderLeft='4px solid '+r.cor;
+    card.innerHTML=`<div class="ctrh"><input class="nome" maxlength="120"><span class="res"></span>
+        <button class="btn sm" data-a="gerar" type="button">Gerar parcelas</button><button class="btn sm danger" data-a="apagar" type="button">Excluir</button></div>
+      <div class="cscroll"><table class="ctab"><thead><tr><th class="n">Nº</th><th class="cd2">Vencimento</th><th class="cv2">Valor (R$)</th><th class="ca"></th></tr></thead><tbody></tbody>
+        <tbody><tr class="novo"><td class="n">novo</td><td class="cd2"><input type="date" data-n="d"></td><td class="cv2"><input inputmode="decimal" placeholder="0,00" data-n="v"></td><td class="ca"><button class="btn sm primary" data-a="add" type="button">+<span class="lbl"> Linha</span></button></td></tr></tbody></table></div>`;
+    const iNome=card.querySelector('input.nome'); iNome.value=c.nome;
+    card.querySelector('.res').textContent = r.total ? `${r.faltam} de ${r.total} parcela(s) faltando · ${brl(r.saldo)}` : 'sem parcelas';
+    iNome.addEventListener('change', async ()=>{ const nome=iNome.value.trim(); if(!nome||nome===c.nome){ iNome.value=c.nome; return; }
+      try{ Object.assign(c, await api('contratos?id='+c.id,{method:'PUT', body:{nome}})); toast('Contrato renomeado'); desenharExtras(); }catch(e){ falha(e); iNome.value=c.nome; } });
+    iNome.addEventListener('keydown', e=>{ if(e.key==='Enter') iNome.blur(); });
+    const tb=card.querySelector('tbody');
+    c.parcelas.forEach((p,i)=>{
+      const tr=document.createElement('tr'); tr.className = p.vencimento<hoje ? 'pass' : '';
+      tr.innerHTML=`<td class="n">${i+1}/${c.parcelas.length}</td><td class="cd2"><input type="date"></td><td class="cv2"><input inputmode="decimal"></td><td class="ca"><button class="x" type="button" title="Apagar parcela">×</button></td>`;
+      const [iD,iV]=tr.querySelectorAll('input'); iD.value=p.vencimento; iV.value=brl2(p.valor);
+      const salvar = async ()=>{ const novo={vencimento:iD.value, valor:lerValor(iV.value)};
+        if(novo.vencimento===p.vencimento && novo.valor===p.valor) return;
+        if(!novo.vencimento || isNaN(novo.valor)){ tr.className='erro'; return toast('Preencha data e valor.'); }
+        tr.className='salvando';
+        try{ Object.assign(p, await api('contratos?parcela='+p.id,{method:'PUT', body:novo})); toast('Parcela salva'); mudouContratos(); }catch(e){ tr.className='erro'; falha(e); } };
+      [iD,iV].forEach(x=>{ x.addEventListener('change', salvar); x.addEventListener('keydown', e=>{ if(e.key==='Enter') x.blur(); }); });
+      tr.querySelector('.x').onclick = async ()=>{ try{ await api('contratos?parcela='+p.id,{method:'DELETE'}); c.parcelas=c.parcelas.filter(x=>x!==p); mudouContratos(); }catch(e){ falha(e); } };
+      tb.append(tr);
+    });
+    const nD=card.querySelector('[data-n="d"]'), nV=card.querySelector('[data-n="v"]');
+    // sugere a data um mês depois da última parcela
+    const ult=c.parcelas[c.parcelas.length-1]; if(ult) nD.value=somaMes(ult.vencimento,1);
+    if(ult) nV.value=brl2(ult.valor);
+    const add = async ()=>{ const it={vencimento:nD.value, valor:lerValor(nV.value)};
+      if(!it.vencimento) return nD.focus(); if(isNaN(it.valor)) return nV.focus();
+      try{ const r2=await api('contratos',{method:'POST', body:{contratoId:c.id, itens:[it]}}); c.parcelas.push(...r2); mudouContratos(); toast('Parcela adicionada'); }catch(e){ falha(e); } };
+    card.querySelector('[data-a="add"]').onclick=add;
+    [nD,nV].forEach(x=>x.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); add(); } }));
+    card.querySelector('[data-a="gerar"]').onclick=()=>abrirGerar(c);
+    card.querySelector('[data-a="apagar"]').onclick=async ()=>{
+      if(!await confirmar('Excluir o contrato '+c.nome+'?','O contrato e todas as parcelas saem do painel e do calendário do cliente.')) return;
+      try{ await api('contratos?id='+c.id,{method:'DELETE'}); st.contratos=st.contratos.filter(x=>x!==c); mudouContratos(); toast('Contrato excluído'); }catch(e){ falha(e); } };
+    box.append(card);
+  });
+}
+function somaMes(iso, n){ const [a,m,d]=iso.split('-').map(Number); const alvo=new Date(a,m-1+n,1); const ult=new Date(alvo.getFullYear(),alvo.getMonth()+1,0).getDate(); return isoDe(new Date(alvo.getFullYear(),alvo.getMonth(),Math.min(d,ult))); }
+$('bNovoCtr').onclick = async () => {
+  try{
+    const c = await api('contratos',{method:'POST', body:{empresaId:st.emp.id, nome:'Novo contrato '+(st.contratos.length+1)}});
+    st.contratos.push(c); mudouContratos(); abrirGerar(c);
+    const ins=$('ctrLista').querySelectorAll('input.nome'); ins[ins.length-1].select();
+  }catch(e){ falha(e); }
+};
+let gerarCtr=null;
+function abrirGerar(c){
+  gerarCtr=c; $('gerarSub').textContent=`Contrato: ${c.nome}. Cria as parcelas mensais de uma vez. Depois você pode ajustar qualquer linha.`;
+  const ult=c.parcelas[c.parcelas.length-1];
+  $('gVal').value = ult? brl2(ult.valor) : ''; $('gQtd').value=''; $('gData').value = ult? somaMes(ult.vencimento,1) : somaMes(hojeISO(),1);
+  $('mGerar').hidden=false; setTimeout(()=>$('gVal').focus(),50);
+}
+$('bGerarNao').onclick = () => $('mGerar').hidden=true;
+$('fGerar').onsubmit = async ev => {
+  ev.preventDefault();
+  const valor=lerValor($('gVal').value), qtd=+$('gQtd').value, ini=$('gData').value;
+  if(isNaN(valor)) return toast('Valor inválido. Use por exemplo 1.234,56');
+  if(!(qtd>=1 && qtd<=360) || !ini) return toast('Confira a quantidade e a data.');
+  const itens = Array.from({length:qtd},(_,i)=>({ vencimento:somaMes(ini,i), valor }));
+  $('bGerarSim').disabled=true;
+  try{ const r=await api('contratos',{method:'POST', body:{contratoId:gerarCtr.id, itens}}); gerarCtr.parcelas.push(...r); $('mGerar').hidden=true; mudouContratos(); toast(qtd+' parcela(s) criada(s)'); }
+  catch(e){ falha(e); }
+  $('bGerarSim').disabled=false;
+};

@@ -72,6 +72,11 @@
       <div class="cscroll"><table class="ctab"><tbody id="cLista"></tbody></table></div>
       <small class="hint">Mostra as contas dos últimos 90 dias em diante. Cada alteração salva sozinha e já aparece no calendário do cliente.</small>
     </div>
+    <div class="ctrbox" id="contratosBox" hidden>
+      <div class="cbh"><h3>Contratos</h3><span class="cbs" id="ctrResumo"></span><button class="btn sm primary" id="bNovoCtr" type="button">+ Novo contrato</button></div>
+      <div id="ctrLista"></div>
+      <small class="hint">Cada linha é uma parcela (data e valor). As parcelas com data passada contam como pagas, e a previsão do cliente se atualiza sozinha.</small>
+    </div>
     <div class="err" id="err" hidden></div>
     <div class="toolbar" id="tbar" hidden>
       <div class="seg" id="mode"><button data-m="mensal" class="on">Mensal</button><button data-m="trimestral">Trimestral</button><button data-m="anual">Anual</button></div>
@@ -95,6 +100,7 @@
     <small class="hint" id="hSenha">É a senha que o cliente digita para abrir o painel. Anote antes de salvar: por segurança ela não fica visível depois.</small></label>
   <label class="chk"><input type="checkbox" id="iPos" checked><span>Incluir <b>Posição de clientes</b><small>Página com quanto há a receber em cada banco (em aberto + vencido).</small></span></label>
   <label class="chk"><input type="checkbox" id="iContas"><span>Incluir <b>Calendário de contas a pagar</b><small>Você cadastra os boletos (recebedor, valor e data) e o cliente vê um calendário, que também passa no modo TV.</small></span></label>
+  <label class="chk"><input type="checkbox" id="iContratos"><span>Incluir <b>Contratos</b><small>Parcelas de contratos com previsão de pagamentos. As parcelas também entram no calendário de contas.</small></span></label>
   <div class="fld"><span>Cor do card</span><div class="colors" id="iCor"></div></div>
   <div class="mact">
     <button type="button" class="btn danger left" id="bDelEmp" hidden>Excluir empresa</button>
@@ -110,6 +116,15 @@
   <div class="msg" id="colarMsg" style="font-size:12.5px;color:var(--muted);margin-top:8px"></div>
   <div class="mact"><button class="btn" id="bColarNao" type="button">Cancelar</button><button class="btn primary" id="bColarSim" type="button">Importar</button></div>
 </div></div>
+
+<div class="modal" id="mGerar" hidden><form class="mbox" id="fGerar">
+  <h2>Gerar parcelas</h2>
+  <p class="s" id="gerarSub">Cria as parcelas mensais de uma vez. Depois você pode ajustar qualquer linha.</p>
+  <label class="fld"><span>Valor da parcela (R$) *</span><input id="gVal" inputmode="decimal" placeholder="0,00" required></label>
+  <label class="fld"><span>Quantas parcelas faltam *</span><input id="gQtd" type="number" min="1" max="360" required></label>
+  <label class="fld"><span>Data da próxima parcela *</span><input id="gData" type="date" required></label>
+  <div class="mact"><button type="button" class="btn" id="bGerarNao">Cancelar</button><button type="submit" class="btn primary" id="bGerarSim">Gerar parcelas</button></div>
+</form></div>
 
 <div class="modal" id="mConf" hidden><div class="mbox">
   <h2 id="cT"></h2><p class="s" id="cS"></p>

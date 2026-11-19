@@ -51,6 +51,30 @@ async function migrar() {
     criado_em timestamptz not null default now()
   )`;
   await sql`create index if not exists contas_pagar_empresa_venc on contas_pagar (empresa_id, vencimento)`;
+  // v4: contratos com parcelas
+  await sql`alter table empresas add column if not exists contratos boolean not null default false`;
+  await sql`create table if not exists contratos (
+    id text primary key,
+    empresa_id text not null references empresas(id) on delete cascade,
+    nome text not null,
+    criado_em timestamptz not null default now()
+  )`;
+  await sql`create table if not exists contrato_parcelas (
+    id text primary key,
+    contrato_id text not null references contratos(id) on delete cascade,
+    vencimento date not null,
+    valor numeric(14,2) not null
+  )`;
+  await sql`create index if not exists contrato_parcelas_contrato on contrato_parcelas (contrato_id, vencimento)`;
+}
+
+// Contratos de uma empresa com todas as parcelas (numeradas: 3 de 12 etc.)
+export async function contratosDaEmpresa(sql, empresaId) {
+  const cs = await sql`select id, nome from contratos where empresa_id = ${empresaId} order by criado_em`;
+  const ps = await sql`select p.id, p.contrato_id, to_char(p.vencimento, 'YYYY-MM-DD') as vencimento, p.valor::float8 as valor
+                         from contrato_parcelas p join contratos c on c.id = p.contrato_id
+                        where c.empresa_id = ${empresaId} order by p.vencimento, p.id limit 5000`;
+  return cs.map(c => ({ id: c.id, nome: c.nome, parcelas: ps.filter(p => p.contrato_id === c.id).map(p => ({ id: p.id, vencimento: p.vencimento, valor: p.valor })) }));
 }
 export async function db() {
   if (!sql) throw new HttpError(500, 'Banco não configurado: defina DATABASE_URL nas variáveis de ambiente da Vercel.');

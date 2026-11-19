@@ -198,7 +198,12 @@ function render(model, mode, m){
   const bal = (arr,i) => i==null? null : (arr[i] ?? 0);
   const saldoTotal = i => i==null? null : ['bb','stone','sic','cora','rende','aplSic'].reduce((a,k)=>a+(ct[k][i]??0),0);
   const footTxt = `Evolução Financeira ${model.ano} · ${esc(EMP_NOME)}${model.ate?` · lançamentos até ${model.ate}`:''}`;
-  const NP = (REPORT_OPTS.posicao ? 7 : 6) + (REPORT_OPTS.extra||0);
+  // investimentos = consórcio e financiamentos (ficam dentro de "despesas financeiras" na DRE)
+  const ehInvest = r => /consorcio|financiamento/.test(r.key);
+  const invRows = model.finKids.filter(ehInvest);
+  const invTem = invRows.some(r=>r.vals.slice(0,m).some(v=>Math.abs(v)>0.5));
+  const NP = 6 + (REPORT_OPTS.posicao ? 1 : 0) + (invTem ? 1 : 0) + (REPORT_OPTS.extra||0);
+  let PG = 0;
 
   /* ---------- página 1 ---------- */
   const isAnual = mode==='anual';
@@ -259,8 +264,34 @@ function render(model, mode, m){
     <div><div class="sec">Carteira de clientes <span>· acumulado do ano</span></div>
       <div class="grid g3">${kC.map(([l,v,c])=>{const p=v/cartAll; return `<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${brl(v)}</div><div class="d">${pct(p, p>0&&p<0.01?2:1)} da carteira total</div><div class="bar"><i style="width:${Math.max(p*100,0.8)}%"></i></div></div>`;}).join('')}</div></div>
     <div><div class="sec">Destaques</div><div class="hl">${notes.slice(0,4).map(([c,t])=>`<div class="note" style="--c:${c}">${t}</div>`).join('')}</div></div>
-    ${footer(1,NP,footTxt)}
+    ${footer(++PG,NP,footTxt)}
   </section>`;
+
+  /* ---------- página: resultado sem investimentos (logo depois do resumo) ---------- */
+  if(invTem){
+    const invS = idx => -invRows.reduce((t,r)=>t+sumIdx(r.vals, idx),0);
+    const inv = invS(P.idx), semInv = rl + inv;
+    const invYTD = invS(range(0,m-1)), rlYTD = sumIdx(model.rl, range(0,m-1));
+    const margSem = rb ? semInv/rb : 0;
+    const box = (t,v,d,c,cls='') => `<div class="eqc ${cls}" style="--c:${c}"><div class="l">${t}</div><div class="v ${v<0?'neg':''}">${brl(v)}</div><div class="d">${d}</div></div>`;
+    html += `<section class="page inv-page">${header('Resultado sem investimentos', `${P.secaoSub} · visão gerencial`)}
+      <div class="explica"><div class="exi">?</div><div><b>O que esta página mostra?</b> Na DRE, as parcelas de <b>consórcio e financiamentos</b> entram como despesa financeira.
+        Só que elas pagam bens que continuam sendo da empresa (veículos, imóveis, cartas de consórcio): é dinheiro que sai do caixa, mas vira patrimônio.
+        Aqui separamos essas parcelas para mostrar <b>quanto a operação da empresa realmente gerou</b>. O resultado oficial continua sendo o da DRE.</div></div>
+      <div><div class="sec">${P.secao} <span>· ${P.secaoSub}</span></div>
+        <div class="eq">
+          ${box('Resultado líquido (real)', rl, 'o que sobrou de fato, como está na DRE', rl<0?C.neg:C.pos)}
+          <div class="eqop">+</div>
+          ${box('Investimentos', inv, 'consórcio e financiamentos pagos no período', C.roxo)}
+          <div class="eqop">=</div>
+          ${box('Resultado sem investimentos', semInv, `margem de ${pct(margSem)} sobre a receita (real: ${pct(marg)})`, C.navy, 'destaque')}
+        </div></div>
+      ${mode!=='anual' ? `<div class="note" style="--c:${C.roxo}">No ano (jan–${MESES[m-1].toLowerCase()}): resultado real de <b>${curto(rlYTD)}</b>, com <b>${curto(invYTD)}</b> investidos em consórcio e financiamentos. Sem esses investimentos, o resultado seria <b>${curto(rlYTD+invYTD)}</b>.</div>` : ''}
+      <div class="grid g2b fill">
+        <div class="card"><h3>Resultado real × sem investimentos</h3><div class="sub">R$ ${mode==='trimestral'?'por trimestre':'por mês'} · a diferença entre as barras é o que foi investido</div><div class="cv"><canvas id="c_inv"></canvas></div></div>
+        <div class="card"><h3>Onde foram os investimentos</h3><div class="sub">${P.secaoSub} · total ${brl(inv)}</div><div class="cv"><canvas id="c_invtipo"></canvas></div></div>
+      </div>${footer(++PG,NP,footTxt)}</section>`;
+  }
 
   /* ---------- página 2 ---------- */
   const unidade = mode==='trimestral'?'por trimestre':'por mês';
@@ -271,7 +302,7 @@ function render(model, mode, m){
       <div class="card"><h3>Resultado líquido ${mode==='trimestral'?'trimestral':'mensal'}</h3><div class="sub">Barras: resultado do período · linha: acumulado no ano</div><div class="cv"><canvas id="c_res"></canvas></div></div>
       <div class="card"><h3>Receita × Saídas</h3><div class="sub">R$ ${unidade}</div><div class="cv"><canvas id="c_recsai"></canvas></div></div>
       <div class="card"><h3>Evolução de caixa</h3><div class="sub">Saldo no fim de cada ${mode==='trimestral'?'trimestre':'mês'} · em contas + aplicado</div><div class="cv"><canvas id="c_caixa"></canvas></div></div>
-    </div>${footer(2,NP,footTxt)}</section>`;
+    </div>${footer(++PG,NP,footTxt)}</section>`;
 
   /* ---------- página 3: DRE ---------- */
   let cols, curCol, extra='';
@@ -292,7 +323,7 @@ function render(model, mode, m){
   html += `<section class="page">${header(`DRE — ${mode==='mensal'?'mensal':mode==='trimestral'?'por trimestre':'anual'} ${model.ano}`, `Valores em R$ · negativos entre parênteses · ${mode==='anual'?'acumulado':'período de referência destacado'} até ${MESES[m-1].toLowerCase()}`)}
     <div class="dre"><table>${th}${tb}</table></div>
     <div class="dnote">Total/Ano = acumulado de jan a ${MESES[m-1].toLowerCase()}. Linhas em itálico detalham as despesas financeiras.${ocultas?` ${ocultas} linha(s) sem valores no período foram ocultadas.`:''}${cols.some(c=>c.l.endsWith('*'))?' * trimestre parcial.':''}</div>
-    ${footer(3,NP,footTxt)}</section>`;
+    ${footer(++PG,NP,footTxt)}</section>`;
 
   /* ---------- página 4 ---------- */
   html += `<section class="page">${header('Carteira, saídas e despesas financeiras', `Saídas e despesas financeiras: ${P.secaoSub} · carteira: acumulado do ano`)}
@@ -301,7 +332,7 @@ function render(model, mode, m){
       <div class="card"><h3>Saídas por categoria</h3><div class="sub">${P.secaoSub} (R$)</div><div class="cv"><canvas id="c_cat"></canvas></div></div>
       <div class="card"><h3>Posição da carteira por banco</h3><div class="sub">% recebido, em aberto e vencido</div><div class="cv"><canvas id="c_pos"></canvas></div></div>
       <div class="card"><h3>Despesas financeiras por tipo</h3><div class="sub">${P.secaoSub} · total ${brl(fin)}</div><div class="cv"><canvas id="c_fin"></canvas></div></div>
-    </div>${footer(4,NP,footTxt)}</section>`;
+    </div>${footer(++PG,NP,footTxt)}</section>`;
 
   /* ---------- página 5 ---------- */
   html += `<section class="page">${header('Caixa por banco', `Saldos no fim de cada ${mode==='trimestral'?'trimestre':'mês'} em conta corrente e aplicações`)}
@@ -310,7 +341,7 @@ function render(model, mode, m){
       <div class="card"><h3>Sicredi — caixa (conta + aplicação)</h3><div class="sub">R$</div><div class="cv"><canvas id="c_sic"></canvas></div></div>
       <div class="card"><h3>BB × Sicredi — caixa total</h3><div class="sub">R$</div><div class="cv"><canvas id="c_bbsic"></canvas></div></div>
       <div class="card"><h3>Saldo em conta corrente por banco</h3><div class="sub">R$ (sem aplicações)</div><div class="cv"><canvas id="c_contas"></canvas></div></div>
-    </div>${footer(5,NP,footTxt)}</section>`;
+    </div>${footer(++PG,NP,footTxt)}</section>`;
 
   /* ---------- página 6 ---------- */
   html += `<section class="page">${header('Aplicações financeiras', `Movimentação, rendimentos e saldos aplicados ${unidade}`)}
@@ -319,7 +350,7 @@ function render(model, mode, m){
       <div class="card"><h3>Rendimento × Impostos</h3><div class="sub">R$ ${unidade} · IR + IOF</div><div class="cv"><canvas id="c_rend"></canvas></div></div>
       <div class="card"><h3>Rendimentos por banco</h3><div class="sub">R$ ${unidade}</div><div class="cv"><canvas id="c_rendbk"></canvas></div></div>
       <div class="card"><h3>Saldo das aplicações</h3><div class="sub">R$ no fim de cada ${mode==='trimestral'?'trimestre':'mês'}</div><div class="cv"><canvas id="c_apl"></canvas></div></div>
-    </div>${footer(6,NP,footTxt)}</section>`;
+    </div>${footer(++PG,NP,footTxt)}</section>`;
 
   /* ---------- página 7: posição de clientes (opcional por empresa) ---------- */
   const bancosPos = ['BB','Cora','Stone','Sicredi'].filter(b=>model.cart[b]).concat(cartNames.filter(b=>!['BB','Cora','Stone','Sicredi'].includes(b)));
@@ -342,7 +373,7 @@ function render(model, mode, m){
         <div class="card"><h3>Posição por banco</h3><div class="sub">R$ · títulos do ano</div>
           <div class="ptab"><table><tr><th>Banco</th><th>Recebido</th><th>Em aberto</th><th>Vencido</th><th>A receber</th><th>% do total</th></tr>
             ${pr.map(x=>linha(x)).join('')}${linha({b:'Total',rec:tRec,ab:tAb,ve:tVe,ar:tAr},'final')}</table></div></div>
-      </div>${footer(7,NP,footTxt)}</section>`;
+      </div>${footer(++PG,NP,footTxt)}</section>`;
   }
 
   REPORT_EL.innerHTML = html;
@@ -410,6 +441,18 @@ function render(model, mode, m){
   hbar('c_cat', cats, C.sai);
   const fk = model.finKids.map(r=>[r.label, -S(r.vals)]).filter(x=>Math.abs(x[1])>0.5).sort((a,b)=>b[1]-a[1]);
   hbar('c_fin', fk, C.roxo);
+  if(invTem){
+    const invB = B.map(b=>-invRows.reduce((t,r)=>t+sumIdx(r.vals,b.idx),0));
+    const realB = agg(model.rl), semB = realB.map((v,i)=>v+invB[i]);
+    mk('c_inv',{type:'bar',data:{labels:L,datasets:[
+      bar('Resultado real', realB, realB.map(v=>v>=0?C.pos:C.neg)),
+      bar('Sem investimentos', semB, C.navy)]},
+      options:{plugins:{legend:{labels:{generateLabels:()=>[
+        {text:'Resultado real',fillStyle:C.pos,strokeStyle:C.pos},{text:'Resultado sem investimentos',fillStyle:C.navy,strokeStyle:C.navy}]}},
+        tooltip:{callbacks:{afterBody:it=>{ const i=it[0].dataIndex; return 'Investido: '+brl(invB[i]); }}}},
+        scales:{x:xC,y:yK({grace:'8%'})}}});
+    hbar('c_invtipo', invRows.map(r=>[r.label, -S(r.vals)]).filter(x=>Math.abs(x[1])>0.5).sort((a,b)=>b[1]-a[1]), C.roxo);
+  }
 
   mk('c_bb',{data:{labels:L,datasets:[line('Total BB',rende.map((v,i)=>v+endOf(ct.bb)[i]),'#7A6500',{order:0}),bar('Rende Fácil',rende,C.bb,{stack:'b',order:1}),bar('Conta BB',endOf(ct.bb),'#F3DD6B',{stack:'b',order:1})]},options:{scales:{x:{...xC,stacked:true},y:yK({stacked:true,beginAtZero:true})}}});
   mk('c_sic',{data:{labels:L,datasets:[line('Total Sicredi',aplSic.map((v,i)=>v+endOf(ct.sic)[i]),'#1D4D20',{order:0}),bar('Aplicação',aplSic,C.sic,{stack:'b',order:1}),bar('Conta Sicredi',endOf(ct.sic),C.sicL,{stack:'b',order:1})]},options:{scales:{x:{...xC,stacked:true},y:yK({stacked:true,beginAtZero:true})}}});
@@ -500,7 +543,7 @@ function calendarioHTML(itens, mes){
     const iso = mes+'-'+String(d).padStart(2,'0'), l = porDia[d]||[];
     const cls = ['cd', iso<hoje?'pass':'', iso===hoje?'hoje':'', (new Date(a,m-1,d).getDay()%6===0)?'fds':''].join(' ');
     cels += `<div class="${cls}"><div class="cdh"><span class="dn">${d}</span>${l.length?`<span class="dt">${curto(soma(l))}</span>`:''}</div>`
-      + l.slice(0,MAXC).map(x=>`<div class="ev2" title="${esc(x.recebedor)} · ${brl(x.valor)}"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('')
+      + l.slice(0,MAXC).map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':''}" title="${esc(x.recebedor)} · ${brl(x.valor)}"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('')
       + (l.length>MAXC?`<div class="mais">+${l.length-MAXC} conta(s) · ${curto(soma(l.slice(MAXC)))}</div>`:'') + '</div>';
   }
   const resto = (7 - (primeiro+nd)%7) % 7;
@@ -508,7 +551,7 @@ function calendarioHTML(itens, mes){
   const agenda = Object.keys(porDia).map(Number).sort((x,y)=>x-y).map(d=>{
     const iso = mes+'-'+String(d).padStart(2,'0'), l = porDia[d];
     return `<div class="ag ${iso<hoje?'pass':''} ${iso===hoje?'hoje':''}"><div class="agd"><b>${d}</b><span>${DIAS_SEM[new Date(a,m-1,d).getDay()]}</span></div><div class="agl">`
-      + l.map(x=>`<div class="ev2"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('') + '</div></div>';
+      + l.map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':''}"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('') + '</div></div>';
   }).join('') || '<div class="nodata">Nenhuma conta neste mês.</div>';
   const n = (REPORT_EL ? REPORT_EL.querySelectorAll('.page:not(.cal-page)').length : 0) + 1;
   return `<section class="page cal-page">${header(`Contas a pagar — ${nomeMes(mes)}`, 'Vencimentos do mês · boletos cadastrados pelo consultor')}
@@ -525,5 +568,91 @@ function anexarCalendario(itens, mes){
   const novo = div.firstElementChild;
   if(velho){ if(velho.classList.contains('tv-cur')){ novo.classList.add('tv-cur'); } velho.replaceWith(novo); }
   else REPORT_EL.append(novo);
+  renumerarPaginas();
   return novo;
+}
+function renumerarPaginas(){
+  if(!REPORT_EL) return;
+  const ps = REPORT_EL.querySelectorAll('.page');
+  ps.forEach((p,i)=>{ const sp = p.querySelector('footer.pf span:last-child'); if(sp) sp.textContent = (i+1)+' / '+ps.length; });
+}
+
+/* =====================================================================
+   7. CONTRATOS: parcelas a pagar e previsão
+   ===================================================================== */
+const CTR_CORES = ['#902884','#566BAF','#E07A2E','#2E9E5B','#B5487A','#0F7C86','#7A6500','#3A2459'];
+let CTR_CHARTS = [];
+// numera as parcelas e transforma em itens do calendário (usado na tela do consultor)
+function parcelasNoCalendario(contratos){
+  const out=[];
+  (contratos||[]).forEach(c=>{ const ps=c.parcelas.slice().sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
+    ps.forEach((p,i)=>out.push({ id:p.id, recebedor:`${c.nome} · parcela ${i+1}/${ps.length}`, valor:p.valor, vencimento:p.vencimento, tipo:'contrato' })); });
+  return out;
+}
+function resumoContratos(contratos){
+  const hoje = hojeISO(), mes = hoje.slice(0,7);
+  const lista = (contratos||[]).map((c,k)=>{
+    const ps = c.parcelas.slice().sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
+    const fut = ps.filter(p=>p.vencimento>=hoje);
+    return { nome:c.nome, cor:CTR_CORES[k%CTR_CORES.length], total:ps.length, faltam:fut.length, pagas:ps.length-fut.length,
+      saldo:fut.reduce((t,p)=>t+p.valor,0), prox:fut[0]||null, ultima:ps[ps.length-1]||null,
+      doMes:ps.filter(p=>p.vencimento.startsWith(mes)).reduce((t,p)=>t+p.valor,0), fut };
+  });
+  return { lista, hoje, mes };
+}
+function contratosHTML(contratos){
+  const { lista, mes } = resumoContratos(contratos);
+  const ativos = lista.filter(c=>c.faltam>0);
+  const saldo = ativos.reduce((t,c)=>t+c.saldo,0);
+  const doMes = lista.reduce((t,c)=>t+c.doMes,0);
+  const fim = ativos.map(c=>c.ultima.vencimento).sort().pop();
+  const prox = ativos.map(c=>c.prox).sort((a,b)=>a.vencimento.localeCompare(b.vencimento))[0];
+  const kpis = [
+    ['Falta pagar (total)', brl(saldo), `${ativos.reduce((t,c)=>t+c.faltam,0)} parcela(s) em ${ativos.length} contrato(s)`, C.roxo],
+    [`Parcelas de ${MESES_LONGO[+mes.slice(5)-1]}`, brl(doMes), 'soma das parcelas que vencem neste mês', C.aberto],
+    ['Próxima parcela', prox? dataCurta(prox.vencimento) : '—', prox? brl(prox.valor) : 'nenhuma a vencer', C.azul],
+    ['Tudo quitado em', fim? nomeMes(fim.slice(0,7)) : '—', fim? `última parcela em ${fim.split('-').reverse().join('/')}` : 'sem parcelas futuras', C.pos],
+  ];
+  const linhas = lista.map(c=>`<tr><td><span class="bolinha" style="background:${c.cor}"></span>${esc(c.nome)}</td>
+      <td>${c.prox? dataCurta(c.prox.vencimento)+' · '+brl(c.prox.valor) : '<span class="ok">quitado</span>'}</td>
+      <td>${c.faltam} de ${c.total}</td><td class="t">${brl(c.saldo)}</td>
+      <td>${c.ultima? c.ultima.vencimento.split('-').reverse().join('/') : '—'}</td>
+      <td><div class="mini"><i style="width:${c.total? (c.pagas/c.total*100).toFixed(1):0}%;background:${c.cor}"></i></div></td></tr>`).join('');
+  return `<section class="page ctr-page">${header('Contratos e parcelas', 'Previsão das parcelas a pagar · atualiza sozinha conforme as datas passam')}
+    <div class="grid g4">${kpis.map(([l,v,d,c])=>`<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('')}</div>
+    <div class="grid g2b fill">
+      <div class="card"><h3>Previsão de pagamentos</h3><div class="sub">Barras: parcelas de cada mês, por contrato · linha: quanto ainda falta pagar</div><div class="cv"><canvas id="c_ctr"></canvas></div></div>
+      <div class="card"><h3>Situação de cada contrato</h3><div class="sub">próxima parcela, quantas faltam e saldo</div>
+        <div class="ptab"><table><tr><th>Contrato</th><th>Próxima</th><th>Faltam</th><th>Saldo</th><th>Termina</th><th>Pago</th></tr>${linhas || '<tr><td colspan="6">Nenhum contrato cadastrado.</td></tr>'}</table></div></div>
+    </div>
+    ${footer(0, 0, `Contratos · ${esc(EMP_NOME)}`)}</section>`;
+}
+function anexarContratos(contratos){
+  CTR_CHARTS.forEach(c=>c.destroy()); CTR_CHARTS=[];
+  if(!REPORT_EL) return;
+  const velho = REPORT_EL.querySelector('.ctr-page');
+  if(!contratos){ if(velho) velho.remove(); renumerarPaginas(); return; }
+  const div = document.createElement('div'); div.innerHTML = contratosHTML(contratos);
+  const novo = div.firstElementChild;
+  if(velho){ if(velho.classList.contains('tv-cur')) novo.classList.add('tv-cur'); velho.replaceWith(novo); }
+  else { const cal = REPORT_EL.querySelector('.cal-page'); cal ? cal.before(novo) : REPORT_EL.append(novo); }
+  renumerarPaginas();
+  if(typeof Chart==='undefined') return;
+  // previsão mês a mês, do mês atual até a última parcela (até 36 meses)
+  const { lista, mes } = resumoContratos(contratos);
+  const ultimo = lista.flatMap(c=>c.fut.map(p=>p.vencimento.slice(0,7))).sort().pop();
+  if(!ultimo) return;
+  const meses=[]; for(let x=mes; x<=ultimo && meses.length<36; x=mesMais(x,1)) meses.push(x);
+  const rot = meses.map(x=>MESES[+x.slice(5)-1]+'/'+x.slice(2,4));
+  const ds = lista.filter(c=>c.faltam>0).map(c=>({ type:'bar', label:c.nome, stack:'p', backgroundColor:c.cor, order:1,
+    data: meses.map(x=>c.fut.filter(p=>p.vencimento.startsWith(x)).reduce((t,p)=>t+p.valor,0)) }));
+  const tot = meses.map((_,i)=>ds.reduce((t,d)=>t+d.data[i],0));
+  const totalFut = lista.reduce((t,c)=>t+c.saldo,0);
+  let acc=0; const saldo = tot.map(v=>{ acc+=v; return Math.max(totalFut-acc,0); });
+  CTR_CHARTS.push(new Chart(novo.querySelector('#c_ctr'), { data:{ labels:rot, datasets:[
+      { type:'line', label:'Falta pagar depois do mês', data:saldo, yAxisID:'y2', borderColor:C.navy, backgroundColor:C.navy, pointBackgroundColor:'#fff', pointBorderWidth:2, tension:.25, order:0 },
+      ...ds ]},
+    options:{ maintainAspectRatio:false, animation:false, plugins:{ legend:{position:'bottom'}, tooltip:{ callbacks:{ label:it=>`${it.dataset.label}: ${brl(it.parsed.y)}` } } },
+      scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true, beginAtZero:true, ticks:{callback:v=>kfmt(v)}, title:{display:true,text:'parcelas no mês'}},
+               y2:{position:'right', beginAtZero:true, grid:{display:false}, ticks:{callback:v=>kfmt(v)}, title:{display:true,text:'falta pagar'}} } } }));
 }

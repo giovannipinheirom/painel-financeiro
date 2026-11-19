@@ -2,7 +2,7 @@
 // GET    ?token=&rel=   dados do painel (precisa estar logado como cliente)
 // POST   {token, senha} entra e devolve os dados
 // DELETE ?token=        sai
-import { rota, db, corpo, HttpError, confereSenha, abrirSessaoCliente, fecharSessaoCliente, clienteLogado } from './_lib.js';
+import { rota, db, corpo, HttpError, contratosDaEmpresa, confereSenha, abrirSessaoCliente, fecharSessaoCliente, clienteLogado } from './_lib.js';
 
 const TOKEN_OK = /^[a-z0-9]{24}$/;
 const ID_OK = /^[a-z0-9]{6,40}$/;
@@ -17,6 +17,17 @@ async function contasDoMes(sql, e, mes) {
                             from contas_pagar where empresa_id = ${e.id}
                              and vencimento >= ${ini}::date and vencimento < (${ini}::date + interval '1 month')
                            order by vencimento, lower(recebedor) limit 1000`;
+  if (e.contratos) {
+    // parcelas de contratos entram sozinhas no calendário
+    const ps = await sql`select * from (
+        select p.id, c.nome, p.valor::float8 as valor, to_char(p.vencimento, 'YYYY-MM-DD') as vencimento, p.vencimento as v,
+               row_number() over (partition by p.contrato_id order by p.vencimento, p.id) as n,
+               count(*) over (partition by p.contrato_id) as tot
+          from contrato_parcelas p join contratos c on c.id = p.contrato_id
+         where c.empresa_id = ${e.id}) x
+       where v >= ${ini}::date and v < (${ini}::date + interval '1 month')`;
+    for (const p of ps) itens.push({ id: p.id, recebedor: `${p.nome} · parcela ${p.n}/${p.tot}`, valor: p.valor, vencimento: p.vencimento, tipo: 'contrato' });
+  }
   return { mes, itens };
 }
 
@@ -32,6 +43,7 @@ async function dados(sql, e, rel, mes) {
   return {
     empresa: { nome: e.nome, cnpj: e.cnpj, posicao: e.posicao_clientes },
     contas: await contasDoMes(sql, e, mes),
+    contratos: e.contratos ? (await contratosDaEmpresa(sql, e.id)).map(c => ({ nome: c.nome, parcelas: c.parcelas.map(p => ({ vencimento: p.vencimento, valor: p.valor })) })) : null,
     versoes: versoes.map(v => ({ id: v.id, arquivo: v.arquivo, enviadoEm: v.enviado_em, ano: v.ano, ultimo: v.ultimo })),
     relatorio,
   };
@@ -49,7 +61,7 @@ export default rota(async (req, res) => {
   if (rel != null && !ID_OK.test(rel)) throw new HttpError(400, 'Versão inválida.');
 
   const sql = await db();
-  const [e] = await sql`select id, nome, cnpj, senha_hash, posicao_clientes, contas_pagar from empresas where token = ${token}`;
+  const [e] = await sql`select id, nome, cnpj, senha_hash, posicao_clientes, contas_pagar, contratos from empresas where token = ${token}`;
   if (!e) throw new HttpError(404, 'Este link não está mais ativo. Peça um novo ao seu consultor.');
   const nome = { empresa: { nome: e.nome } };
 
