@@ -1,0 +1,11 @@
+{
+  "name": "painel-financeiro",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Painéis de Evolução Financeira por cliente — Vercel + Postgres",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "postgres": "^3.4.4"
+  }
+}

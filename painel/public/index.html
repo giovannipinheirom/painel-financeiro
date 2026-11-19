@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Evolução Financeira · Painel do consultor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body class="is-admin">
+<header class="top"><div class="topin">
+  <a class="brandmini" href="#"><div class="ev">EV</div><div><b>Evolução Financeira</b><small>inova com valor</small></div></a>
+  <div class="topright"><span class="pill">Modo consultor</span><button class="btn sm" id="bSair" hidden>Sair</button></div>
+</div></header>
+
+<main>
+  <div id="status" class="status"><b>Carregando…</b>Conectando ao painel.</div>
+
+  <form class="login" id="vLogin" hidden autocomplete="on">
+    <h1>Entrar</h1>
+    <p>Área do consultor. Os clientes não precisam disso: eles abrem pelo link de cada empresa.</p>
+    <label class="fld"><span>Senha</span><input type="password" id="iSenha" autocomplete="current-password" required></label>
+    <div class="msg" id="loginMsg"></div>
+    <button class="btn primary" type="submit" id="bEntrar">Entrar</button>
+  </form>
+
+  <section id="v-home" hidden>
+    <div class="pagehead">
+      <div><h1>Empresas</h1><p>Cadastre o cliente, envie a planilha do mês e mande o link do painel para ele.</p></div>
+      <button class="btn primary" id="bNova">+ Nova empresa</button>
+    </div>
+    <div id="cards" class="cards"></div>
+  </section>
+
+  <section id="v-emp" hidden>
+    <a href="#" class="back">← Todas as empresas</a>
+    <div class="emphead">
+      <div class="eid"><div class="av" id="eAv"></div><div><h1 id="eNome"></h1><p id="eMeta"></p></div></div>
+      <div class="eact">
+        <button class="btn" id="bEdit">Editar</button>
+        <button class="btn primary" id="bShare">Copiar link do cliente</button>
+      </div>
+    </div>
+    <div class="sharebox" id="shareBox" hidden>
+      <b>Link do painel deste cliente</b>
+      <div class="row"><input id="shareInput" readonly><button class="btn sm" id="bCopy2">Copiar</button></div>
+      Quem tiver este link vê o painel desta empresa (só dela), sem precisar de login. Se o link vazar ou o contrato acabar,
+      <a href="#" id="bNovoLink" style="color:var(--navy);font-weight:600;text-decoration:underline">gere um link novo</a> e o antigo para de funcionar.
+    </div>
+    <div class="adminrow">
+      <div class="drop" id="drop">
+        <input type="file" id="file" accept=".xlsb,.xlsx,.xlsm,.xls" hidden>
+        <div class="ico">⬆</div>
+        <div><b id="dropT">Arraste a planilha nova aqui</b><span>ou clique para escolher · .xlsb ou .xlsx com as abas <b style="display:inline;font-size:inherit">DRE FINANCEIRO</b> e <b style="display:inline;font-size:inherit">Base Dash</b>. Ela vira a versão atual e o cliente vê na hora.</span></div>
+      </div>
+      <div class="hist"><h3>Histórico de envios</h3><ul id="histList"></ul></div>
+    </div>
+    <div class="err" id="err" hidden></div>
+    <div class="toolbar" id="tbar" hidden>
+      <div class="seg" id="mode"><button data-m="mensal" class="on">Mensal</button><button data-m="trimestral">Trimestral</button><button data-m="anual">Anual</button></div>
+      <label>Mês <select id="month"></select></label>
+      <span class="fileinfo" id="fileinfo"></span>
+      <button class="btn sm" id="bPdf">Baixar PDF</button>
+    </div>
+    <div class="empty" id="empty" hidden></div>
+    <div id="report"></div>
+  </section>
+</main>
+
+<div class="modal" id="mEmp" hidden><form class="mbox" id="fEmp" autocomplete="off">
+  <h2 id="mEmpT">Nova empresa</h2>
+  <p class="s">Os dados aparecem no card e no topo do painel do cliente.</p>
+  <label class="fld"><span>Nome da empresa *</span><input id="iNome" required maxlength="80"></label>
+  <label class="fld"><span>CNPJ</span><input id="iCnpj" maxlength="20" inputmode="numeric" placeholder="00.000.000/0000-00"></label>
+  <label class="fld"><span>Responsável / contato</span><input id="iCont" maxlength="80"></label>
+  <div class="fld"><span>Cor do card</span><div class="colors" id="iCor"></div></div>
+  <div class="mact">
+    <button type="button" class="btn danger left" id="bDelEmp" hidden>Excluir empresa</button>
+    <button type="button" class="btn" data-close>Cancelar</button>
+    <button type="submit" class="btn primary" id="bSave">Salvar</button>
+  </div>
+</form></div>
+
+<div class="modal" id="mConf" hidden><div class="mbox">
+  <h2 id="cT"></h2><p class="s" id="cS"></p>
+  <div class="mact"><button class="btn" id="cNo">Cancelar</button><button class="btn danger solid" id="cYes">Excluir</button></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<script src="/report.js"></script>
+<script src="/admin.js"></script>
+</body>
+</html>
