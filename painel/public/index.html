@@ -118,8 +118,9 @@
 </div></div>
 
 <div class="modal" id="mGerar" hidden><form class="mbox" id="fGerar">
-  <h2>Gerar parcelas</h2>
+  <h2 id="gerarT">Gerar parcelas</h2>
   <p class="s" id="gerarSub">Cria as parcelas mensais de uma vez. Depois você pode ajustar qualquer linha.</p>
+  <label class="fld"><span>Nome do contrato *</span><input id="gNome" maxlength="120" placeholder="Ex.: Financiamento caminhão, Consórcio Itaú" required></label>
   <label class="fld"><span>Valor da parcela (R$) *</span><input id="gVal" inputmode="decimal" placeholder="0,00" required></label>
   <label class="fld"><span>Quantas parcelas faltam *</span><input id="gQtd" type="number" min="1" max="360" required></label>
   <label class="fld"><span>Data da próxima parcela *</span><input id="gData" type="date" required></label>

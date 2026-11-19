@@ -401,7 +401,7 @@ function desenharContratos(){
     c.parcelas.sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
     const r=lista[k];
     const card=document.createElement('div'); card.className='ctrcard'; card.style.borderLeft='4px solid '+r.cor;
-    card.innerHTML=`<div class="ctrh"><input class="nome" maxlength="120"><span class="res"></span>
+    card.innerHTML=`<div class="ctrh"><input class="nome" maxlength="120" placeholder="Nome do contrato" title="Nome do contrato · clique para editar"><span class="res"></span>
         <button class="btn sm" data-a="gerar" type="button">Gerar parcelas</button><button class="btn sm danger" data-a="apagar" type="button">Excluir</button></div>
       <div class="cscroll"><table class="ctab"><thead><tr><th class="n">Nº</th><th class="cd2">Vencimento</th><th class="cv2">Valor (R$)</th><th class="ca"></th></tr></thead><tbody></tbody>
         <tbody><tr class="novo"><td class="n">novo</td><td class="cd2"><input type="date" data-n="d"></td><td class="cv2"><input inputmode="decimal" placeholder="0,00" data-n="v"></td><td class="ca"><button class="btn sm primary" data-a="add" type="button">+<span class="lbl"> Linha</span></button></td></tr></tbody></table></div>`;
@@ -441,29 +441,33 @@ function desenharContratos(){
   });
 }
 function somaMes(iso, n){ const [a,m,d]=iso.split('-').map(Number); const alvo=new Date(a,m-1+n,1); const ult=new Date(alvo.getFullYear(),alvo.getMonth()+1,0).getDate(); return isoDe(new Date(alvo.getFullYear(),alvo.getMonth(),Math.min(d,ult))); }
-$('bNovoCtr').onclick = async () => {
-  try{
-    const c = await api('contratos',{method:'POST', body:{empresaId:st.emp.id, nome:'Novo contrato '+(st.contratos.length+1)}});
-    st.contratos.push(c); mudouContratos(); abrirGerar(c);
-    const ins=$('ctrLista').querySelectorAll('input.nome'); ins[ins.length-1].select();
-  }catch(e){ falha(e); }
-};
+$('bNovoCtr').onclick = () => abrirGerar(null);
 let gerarCtr=null;
+// c = null → contrato novo (só é criado ao confirmar, já com o nome)
 function abrirGerar(c){
-  gerarCtr=c; $('gerarSub').textContent=`Contrato: ${c.nome}. Cria as parcelas mensais de uma vez. Depois você pode ajustar qualquer linha.`;
-  const ult=c.parcelas[c.parcelas.length-1];
+  gerarCtr=c;
+  $('gerarT').textContent = c ? 'Gerar parcelas' : 'Novo contrato';
+  $('gerarSub').textContent = c ? 'Cria as parcelas mensais de uma vez. Depois você pode ajustar qualquer linha.'
+                                : 'Dê um nome ao contrato e crie as parcelas mensais de uma vez. Depois você pode ajustar qualquer linha.';
+  $('bGerarSim').textContent = c ? 'Gerar parcelas' : 'Criar contrato';
+  const ult=c && c.parcelas[c.parcelas.length-1];
+  $('gNome').value = c ? c.nome : '';
   $('gVal').value = ult? brl2(ult.valor) : ''; $('gQtd').value=''; $('gData').value = ult? somaMes(ult.vencimento,1) : somaMes(hojeISO(),1);
-  $('mGerar').hidden=false; setTimeout(()=>$('gVal').focus(),50);
+  $('mGerar').hidden=false; setTimeout(()=>$(c?'gVal':'gNome').focus(),50);
 }
 $('bGerarNao').onclick = () => $('mGerar').hidden=true;
 $('fGerar').onsubmit = async ev => {
   ev.preventDefault();
-  const valor=lerValor($('gVal').value), qtd=+$('gQtd').value, ini=$('gData').value;
+  const nome=$('gNome').value.trim(), valor=lerValor($('gVal').value), qtd=+$('gQtd').value, ini=$('gData').value;
+  if(!nome) return toast('Dê um nome ao contrato.');
   if(isNaN(valor)) return toast('Valor inválido. Use por exemplo 1.234,56');
   if(!(qtd>=1 && qtd<=360) || !ini) return toast('Confira a quantidade e a data.');
   const itens = Array.from({length:qtd},(_,i)=>({ vencimento:somaMes(ini,i), valor }));
   $('bGerarSim').disabled=true;
-  try{ const r=await api('contratos',{method:'POST', body:{contratoId:gerarCtr.id, itens}}); gerarCtr.parcelas.push(...r); $('mGerar').hidden=true; mudouContratos(); toast(qtd+' parcela(s) criada(s)'); }
+  try{
+    if(!gerarCtr){ gerarCtr = await api('contratos',{method:'POST', body:{empresaId:st.emp.id, nome}}); st.contratos.push(gerarCtr); }
+    else if(nome!==gerarCtr.nome) Object.assign(gerarCtr, await api('contratos?id='+gerarCtr.id,{method:'PUT', body:{nome}}));
+    const r=await api('contratos',{method:'POST', body:{contratoId:gerarCtr.id, itens}}); gerarCtr.parcelas.push(...r); $('mGerar').hidden=true; mudouContratos(); toast(qtd+' parcela(s) criada(s)'); }
   catch(e){ falha(e); }
   $('bGerarSim').disabled=false;
 };

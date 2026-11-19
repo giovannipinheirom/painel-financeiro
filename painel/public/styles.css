@@ -406,8 +406,8 @@ body.tv .cd{min-height:132px}
 .ctrbox{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:16px}
 .ctrcard{border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-top:10px}
 .ctrh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
-.ctrh input.nome{flex:1;min-width:160px;font:inherit;font-family:"Exo 2",Inter,sans-serif;font-weight:600;font-size:15px;border:1px solid transparent;border-radius:7px;padding:6px 8px;color:var(--ink)}
-.ctrh input.nome:hover{border-color:var(--line)} .ctrh input.nome:focus{outline:none;border-color:var(--roxo)}
+.ctrh input.nome{flex:1;min-width:160px;font:inherit;font-family:"Exo 2",Inter,sans-serif;font-weight:600;font-size:15px;border:1px solid var(--line);border-radius:7px;padding:6px 8px;color:var(--ink);background:#fff}
+.ctrh input.nome:hover{border-color:var(--muted)} .ctrh input.nome:focus{outline:none;border-color:var(--roxo)}
 .ctrh .res{font-size:12px;color:var(--muted)}
 .ctrcard .cscroll{max-height:260px}
 .ctrcard .n{width:62px;color:var(--muted);font-size:12px;padding-left:8px}
