@@ -594,8 +594,10 @@ function resumoContratos(contratos){
   const lista = (contratos||[]).map((c,k)=>{
     const ps = c.parcelas.slice().sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
     const fut = ps.filter(p=>p.vencimento>=hoje);
-    return { nome:c.nome, cor:CTR_CORES[k%CTR_CORES.length], total:ps.length, faltam:fut.length, pagas:ps.length-fut.length,
-      saldo:fut.reduce((t,p)=>t+p.valor,0), prox:fut[0]||null, ultima:ps[ps.length-1]||null,
+    const pagasL = ps.filter(p=>p.vencimento<hoje);
+    return { nome:c.nome, cor:CTR_CORES[k%CTR_CORES.length], total:ps.length, faltam:fut.length, pagas:pagasL.length,
+      saldo:fut.reduce((t,p)=>t+p.valor,0), pago:pagasL.reduce((t,p)=>t+p.valor,0),
+      inicio:ps[0]||null, prox:fut[0]||null, ultima:ps[ps.length-1]||null,
       doMes:ps.filter(p=>p.vencimento.startsWith(mes)).reduce((t,p)=>t+p.valor,0), fut };
   });
   return { lista, hoje, mes };
@@ -607,23 +609,25 @@ function contratosHTML(contratos){
   const doMes = lista.reduce((t,c)=>t+c.doMes,0);
   const fim = ativos.map(c=>c.ultima.vencimento).sort().pop();
   const prox = ativos.map(c=>c.prox).sort((a,b)=>a.vencimento.localeCompare(b.vencimento))[0];
+  const pago = lista.reduce((t,c)=>t+c.pago,0), nPagas = lista.reduce((t,c)=>t+c.pagas,0);
+  const pctPago = pago+saldo>0 ? Math.round(pago/(pago+saldo)*100) : 0;
   const kpis = [
-    ['Falta pagar (total)', brl(saldo), `${ativos.reduce((t,c)=>t+c.faltam,0)} parcela(s) em ${ativos.length} contrato(s)`, C.roxo],
+    ['Já pago', brl(pago), nPagas? `${nPagas} parcela(s) · ${pctPago}% do total dos contratos` : 'nenhuma parcela paga ainda', C.pos],
+    ['Falta pagar', brl(saldo), fim? `${ativos.reduce((t,c)=>t+c.faltam,0)} parcela(s) · tudo quitado em ${nomeMes(fim.slice(0,7))}` : 'sem parcelas futuras', C.roxo],
     [`Parcelas de ${MESES_LONGO[+mes.slice(5)-1]}`, brl(doMes), 'soma das parcelas que vencem neste mês', C.aberto],
     ['Próxima parcela', prox? dataCurta(prox.vencimento) : '—', prox? brl(prox.valor) : 'nenhuma a vencer', C.azul],
-    ['Tudo quitado em', fim? nomeMes(fim.slice(0,7)) : '—', fim? `última parcela em ${fim.split('-').reverse().join('/')}` : 'sem parcelas futuras', C.pos],
   ];
   const linhas = lista.map(c=>`<tr><td><span class="bolinha" style="background:${c.cor}"></span>${esc(c.nome)}</td>
-      <td>${c.prox? dataCurta(c.prox.vencimento)+' · '+brl(c.prox.valor) : '<span class="ok">quitado</span>'}</td>
-      <td>${c.faltam} de ${c.total}</td><td class="t">${brl(c.saldo)}</td>
-      <td>${c.ultima? c.ultima.vencimento.split('-').reverse().join('/') : '—'}</td>
-      <td><div class="mini"><i style="width:${c.total? (c.pagas/c.total*100).toFixed(1):0}%;background:${c.cor}"></i></div></td></tr>`).join('');
-  return `<section class="page ctr-page">${header('Contratos e parcelas', 'Previsão das parcelas a pagar · atualiza sozinha conforme as datas passam')}
+      <td>${c.prox? dataCurta(c.prox.vencimento)+'<small class="sub2">'+brl(c.prox.valor)+'</small>' : '<span class="ok">quitado</span>'}</td>
+      <td>${c.inicio? MESES[+c.inicio.vencimento.slice(5,7)-1]+'/'+c.inicio.vencimento.slice(2,4)+'<small class="sub2">até '+MESES[+c.ultima.vencimento.slice(5,7)-1]+'/'+c.ultima.vencimento.slice(2,4)+'</small>' : '—'}</td>
+      <td>${c.pagas} de ${c.total}<div class="mini"><i style="width:${c.total? (c.pagas/c.total*100).toFixed(1):0}%;background:${c.cor}"></i></div></td>
+      <td class="t">${brl(c.pago,0)}</td><td class="t">${brl(c.saldo,0)}</td></tr>`).join('');
+  return `<section class="page ctr-page">${header('Contratos e parcelas', 'Quanto já foi pago e previsão das parcelas a pagar · atualiza sozinha conforme as datas passam')}
     <div class="grid g4">${kpis.map(([l,v,d,c])=>`<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('')}</div>
     <div class="grid g2b fill">
       <div class="card"><h3>Previsão de pagamentos</h3><div class="sub">Barras: parcelas de cada mês, por contrato · linha: quanto ainda falta pagar</div><div class="cv"><canvas id="c_ctr"></canvas></div></div>
-      <div class="card"><h3>Situação de cada contrato</h3><div class="sub">próxima parcela, quantas faltam e saldo</div>
-        <div class="ptab"><table><tr><th>Contrato</th><th>Próxima</th><th>Faltam</th><th>Saldo</th><th>Termina</th><th>Pago</th></tr>${linhas || '<tr><td colspan="6">Nenhum contrato cadastrado.</td></tr>'}</table></div></div>
+      <div class="card"><h3>Situação de cada contrato</h3><div class="sub">início, fim, quanto já foi pago e quanto falta</div>
+        <div class="ptab"><table><tr><th>Contrato</th><th>Próxima</th><th>Período</th><th>Pagas</th><th>Já pago</th><th>Falta</th></tr>${linhas || '<tr><td colspan="6">Nenhum contrato cadastrado.</td></tr>'}</table></div></div>
     </div>
     ${footer(0, 0, `Contratos · ${esc(EMP_NOME)}`)}</section>`;
 }

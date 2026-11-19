@@ -122,8 +122,9 @@
   <p class="s" id="gerarSub">Cria as parcelas mensais de uma vez. Depois você pode ajustar qualquer linha.</p>
   <label class="fld"><span>Nome do contrato *</span><input id="gNome" maxlength="120" placeholder="Ex.: Financiamento caminhão, Consórcio Itaú" required></label>
   <label class="fld"><span>Valor da parcela (R$) *</span><input id="gVal" inputmode="decimal" placeholder="0,00" required></label>
-  <label class="fld"><span>Quantas parcelas faltam *</span><input id="gQtd" type="number" min="1" max="360" required></label>
-  <label class="fld"><span>Data da próxima parcela *</span><input id="gData" type="date" required></label>
+  <label class="fld"><span>Início do contrato (data da 1ª parcela) *</span><input id="gData" type="date" required></label>
+  <label class="fld"><span>Total de parcelas do contrato *</span><input id="gQtd" type="number" min="1" max="360" required>
+    <small class="hint" id="gInfo">As parcelas com data passada contam como pagas e entram em "Já pago" no painel do cliente.</small></label>
   <div class="mact"><button type="button" class="btn" id="bGerarNao">Cancelar</button><button type="submit" class="btn primary" id="bGerarSim">Gerar parcelas</button></div>
 </form></div>
 

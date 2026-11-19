@@ -402,11 +402,11 @@ function desenharContratos(){
     const r=lista[k];
     const card=document.createElement('div'); card.className='ctrcard'; card.style.borderLeft='4px solid '+r.cor;
     card.innerHTML=`<div class="ctrh"><input class="nome" maxlength="120" placeholder="Nome do contrato" title="Nome do contrato · clique para editar"><span class="res"></span>
-        <button class="btn sm" data-a="gerar" type="button">Gerar parcelas</button><button class="btn sm danger" data-a="apagar" type="button">Excluir</button></div>
+        <button class="btn sm" data-a="gerar" type="button">Início e parcelas</button><button class="btn sm danger" data-a="apagar" type="button">Excluir</button></div>
       <div class="cscroll"><table class="ctab"><thead><tr><th class="n">Nº</th><th class="cd2">Vencimento</th><th class="cv2">Valor (R$)</th><th class="ca"></th></tr></thead><tbody></tbody>
         <tbody><tr class="novo"><td class="n">novo</td><td class="cd2"><input type="date" data-n="d"></td><td class="cv2"><input inputmode="decimal" placeholder="0,00" data-n="v"></td><td class="ca"><button class="btn sm primary" data-a="add" type="button">+<span class="lbl"> Linha</span></button></td></tr></tbody></table></div>`;
     const iNome=card.querySelector('input.nome'); iNome.value=c.nome;
-    card.querySelector('.res').textContent = r.total ? `${r.faltam} de ${r.total} parcela(s) faltando · ${brl(r.saldo)}` : 'sem parcelas';
+    card.querySelector('.res').textContent = r.total ? `início ${dataBRc(r.inicio.vencimento)} · ${r.pagas}/${r.total} paga(s) · já pago ${brl(r.pago)} · falta ${brl(r.saldo)}` : 'sem parcelas';
     iNome.addEventListener('change', async ()=>{ const nome=iNome.value.trim(); if(!nome||nome===c.nome){ iNome.value=c.nome; return; }
       try{ Object.assign(c, await api('contratos?id='+c.id,{method:'PUT', body:{nome}})); toast('Contrato renomeado'); desenharExtras(); }catch(e){ falha(e); iNome.value=c.nome; } });
     iNome.addEventListener('keydown', e=>{ if(e.key==='Enter') iNome.blur(); });
@@ -447,14 +447,33 @@ let gerarCtr=null;
 function abrirGerar(c){
   gerarCtr=c;
   $('gerarT').textContent = c ? 'Gerar parcelas' : 'Novo contrato';
-  $('gerarSub').textContent = c ? 'Cria as parcelas mensais de uma vez. Depois você pode ajustar qualquer linha.'
-                                : 'Dê um nome ao contrato e crie as parcelas mensais de uma vez. Depois você pode ajustar qualquer linha.';
+  $('gerarSub').textContent = c ? 'Cria as parcelas mensais que faltam entre o início e o fim do contrato. Meses que já têm parcela não são duplicados.'
+                                : 'Informe o início e o total de parcelas: o painel cria todas, e as já vencidas contam como pagas.';
   $('bGerarSim').textContent = c ? 'Gerar parcelas' : 'Criar contrato';
-  const ult=c && c.parcelas[c.parcelas.length-1];
+  const ps=c ? c.parcelas.slice().sort((a,b)=>a.vencimento.localeCompare(b.vencimento)) : [];
+  const ult=ps[ps.length-1];
   $('gNome').value = c ? c.nome : '';
-  $('gVal').value = ult? brl2(ult.valor) : ''; $('gQtd').value=''; $('gData').value = ult? somaMes(ult.vencimento,1) : somaMes(hojeISO(),1);
-  $('mGerar').hidden=false; setTimeout(()=>$(c?'gVal':'gNome').focus(),50);
+  $('gVal').value = ult? brl2(ult.valor) : ''; $('gQtd').value = ps.length || ''; $('gData').value = ps.length ? ps[0].vencimento : '';
+  infoGerar(); $('mGerar').hidden=false; setTimeout(()=>$(c?'gVal':'gNome').focus(),50);
 }
+// parcelas do contrato: do início, uma por mês; pula meses que já têm parcela
+function planoGerar(){
+  const ini=$('gData').value, qtd=+$('gQtd').value, valor=lerValor($('gVal').value);
+  if(!ini || !(qtd>=1 && qtd<=360)) return null;
+  const tem=new Set((gerarCtr? gerarCtr.parcelas : []).map(p=>p.vencimento.slice(0,7)));
+  const todas=Array.from({length:qtd},(_,i)=>somaMes(ini,i));
+  const novas=todas.filter(d=>!tem.has(d.slice(0,7))).map(vencimento=>({ vencimento, valor }));
+  const hoje=hojeISO(), pagas=todas.filter(d=>d<hoje).length;
+  return { novas, pagas, faltam:qtd-pagas, fim:todas[todas.length-1], valor };
+}
+function infoGerar(){
+  const pl=planoGerar(), el=$('gInfo');
+  if(!pl){ el.textContent='As parcelas com data passada contam como pagas e entram em "Já pago" no painel do cliente.'; return; }
+  const v = isNaN(pl.valor) ? '' : ` · já pago ${brl(pl.pagas*pl.valor)}`;
+  el.textContent = `${pl.pagas} paga(s)${v} · ${pl.faltam} a pagar · última em ${dataBRc(pl.fim)}`
+    + (gerarCtr && gerarCtr.parcelas.length ? ` · ${pl.novas.length} parcela(s) nova(s) a criar` : '');
+}
+['gData','gQtd','gVal'].forEach(id=>$(id).addEventListener('input', infoGerar));
 $('bGerarNao').onclick = () => $('mGerar').hidden=true;
 $('fGerar').onsubmit = async ev => {
   ev.preventDefault();
@@ -462,12 +481,14 @@ $('fGerar').onsubmit = async ev => {
   if(!nome) return toast('Dê um nome ao contrato.');
   if(isNaN(valor)) return toast('Valor inválido. Use por exemplo 1.234,56');
   if(!(qtd>=1 && qtd<=360) || !ini) return toast('Confira a quantidade e a data.');
-  const itens = Array.from({length:qtd},(_,i)=>({ vencimento:somaMes(ini,i), valor }));
+  const itens = planoGerar().novas;
+  if(gerarCtr && !itens.length && nome===gerarCtr.nome) return toast('Todos esses meses já têm parcela. Aumente o total ou mude o início.');
   $('bGerarSim').disabled=true;
   try{
     if(!gerarCtr){ gerarCtr = await api('contratos',{method:'POST', body:{empresaId:st.emp.id, nome}}); st.contratos.push(gerarCtr); }
     else if(nome!==gerarCtr.nome) Object.assign(gerarCtr, await api('contratos?id='+gerarCtr.id,{method:'PUT', body:{nome}}));
-    const r=await api('contratos',{method:'POST', body:{contratoId:gerarCtr.id, itens}}); gerarCtr.parcelas.push(...r); $('mGerar').hidden=true; mudouContratos(); toast(qtd+' parcela(s) criada(s)'); }
+    if(itens.length){ const r=await api('contratos',{method:'POST', body:{contratoId:gerarCtr.id, itens}}); gerarCtr.parcelas.push(...r); }
+    $('mGerar').hidden=true; mudouContratos(); toast(itens.length ? itens.length+' parcela(s) criada(s)' : 'Contrato salvo'); }
   catch(e){ falha(e); }
   $('bGerarSim').disabled=false;
 };
