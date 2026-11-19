@@ -5,19 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
-<title>Evolução Financeira</title>
+<title>Evolução Financeira · inova com valor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="/img/favicon.png">
+<meta name="theme-color" content="#902884">
 <link rel="stylesheet" href="/styles.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 <header class="top"><div class="topin">
-  <div class="brandmini"><div class="ev">EV</div><div><b>Evolução Financeira</b><small>inova com valor</small></div></div>
+  <div class="brandmini"><img class="ic" src="/img/icone.png" alt=""><img class="wm" src="/img/marca.png" alt="inova com valor"><span class="app">Evolução Financeira</span></div>
+  <div class="topright"><button class="btn sm" id="bSair" hidden>Sair</button></div>
 </div></header>
 
 <main>
   <div id="status" class="status"><b>Carregando…</b>Abrindo o seu painel.</div>
+
+  <form class="login" id="vSenha" hidden>
+    <img class="loginlogo" src="/img/logo.png" alt="inova com valor">
+    <h1 id="sNome">Painel financeiro</h1>
+    <p>Digite a senha que você recebeu do seu consultor.</p>
+    <label class="fld"><span>Senha</span><input type="password" id="iSenha" autocomplete="current-password" required></label>
+    <div class="msg" id="sMsg"></div>
+    <button class="btn primary" type="submit" id="bEntrar">Entrar</button>
+  </form>
+
   <section id="v-emp" hidden>
     <div class="emphead">
       <div class="eid"><div class="av" id="eAv"></div><div><h1 id="eNome"></h1><p id="eMeta"></p></div></div>
@@ -26,12 +39,26 @@
       <div class="seg" id="mode"><button data-m="mensal" class="on">Mensal</button><button data-m="trimestral">Trimestral</button><button data-m="anual">Anual</button></div>
       <label>Mês <select id="month"></select></label>
       <label>Versão <select id="ver"></select></label>
-      <button class="btn sm" id="bPdf">Baixar PDF</button>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn sm" id="bPdf">Baixar PDF</button>
+        <button class="btn sm primary" id="bTv">▶ Modo TV</button>
+      </span>
     </div>
     <div class="empty" id="empty" hidden></div>
     <div id="report"></div>
   </section>
 </main>
+
+<div id="tvprog"></div>
+<div id="tvbar">
+  <img class="tvlogo" src="/img/logo-branca.png" alt="inova com valor">
+  <span class="tvt" id="tvTitle"></span>
+  <span class="tvc" id="tvCount"></span>
+  <button id="tvPrev" title="Anterior (←)">‹</button>
+  <button id="tvPause" title="Pausar (espaço)">❚❚</button>
+  <button id="tvNext" title="Próximo (→)">›</button>
+  <button id="tvSair" title="Sair (Esc)">Sair do modo TV</button>
+</div>
 <div class="toast" id="toast"></div>
 <script src="/report.js"></script>
 <script src="/cliente.js"></script>

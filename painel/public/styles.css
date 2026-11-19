@@ -209,3 +209,176 @@
   .dre{max-height:none;overflow:visible}
   th{position:static}
 }
+
+/* =====================================================================
+   IDENTIDADE INOVA COM VALOR
+   roxo #902884 · azul #566BAF · tinta #241A33
+   ===================================================================== */
+:root{ --roxo:#902884; --roxo-esc:#741A6A; --roxo-cl:#F6EAF4; --azul:#566BAF; --azul-cl:#ECEFF8;
+  --ink:#241A33; --navy:#3A2459; --muted:#6E6880; --line:#E8E4EF; --bg:#F9F8FC; --shell:#F3F1F8; }
+body{color:var(--ink)}
+h1,h2,.pagehead h1,.eid h1,.ttl h1,.login h1,.mbox h2{font-family:"Exo 2",Inter,sans-serif;letter-spacing:-.2px}
+.ttl h1{font-weight:700}
+
+/* topo */
+.top{border-bottom:0;box-shadow:0 1px 0 var(--line)}
+.top::after{content:"";display:block;height:3px;background:linear-gradient(90deg,var(--azul),var(--roxo))}
+.brandmini{gap:12px}
+.brandmini .ic{height:34px;width:34px}
+.brandmini .wm{height:26px;width:auto}
+.brandmini .app{font-family:"Exo 2",Inter,sans-serif;font-weight:600;font-size:14px;color:var(--navy);padding-left:12px;border-left:1px solid var(--line);white-space:nowrap}
+.pill{color:var(--roxo);background:var(--roxo-cl)}
+
+/* botões e controles */
+.btn{border-color:#D9D3E3}
+.btn:hover{background:#F6F4FA}
+.btn.primary{background:var(--roxo);border-color:var(--roxo)}
+.btn.primary:hover{background:var(--roxo-esc)}
+.seg{border-color:#D9D3E3} .seg button+button{border-left-color:#D9D3E3}
+.seg button.on{background:var(--roxo)}
+select,.fld input,.sharebox input{border-color:#D9D3E3}
+.fld input:focus{outline:2px solid #E7C7E2;border-color:var(--roxo)}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#3A3350;cursor:pointer;margin-bottom:12px;line-height:1.4}
+.chk input{width:18px;height:18px;accent-color:var(--roxo);margin-top:1px;flex:none}
+.chk small{display:block;color:var(--muted);font-size:11.5px}
+.pwrow{display:flex;gap:6px}.pwrow input{flex:1;min-width:0}
+.hint{font-size:11.5px;color:var(--muted);margin-top:5px;display:block}
+.warn{display:inline-block;font-size:10.5px;font-weight:700;color:#8A4B00;background:#FFF1D6;border-radius:99px;padding:2px 8px;margin-left:6px;vertical-align:middle}
+
+/* cards e páginas internas */
+.ecard:hover{box-shadow:0 8px 24px rgba(58,36,89,.10)}
+.addcard{border-color:#CFC6DD;color:var(--roxo)}
+.back:hover{color:var(--roxo)}
+.sharebox{border-left-color:var(--roxo)}
+.drop.over{border-color:var(--roxo);background:#FBF5FA}
+.drop .ico{background:var(--roxo-cl);color:var(--roxo)}
+.hist h3{color:var(--roxo)}
+.hist li.on{background:var(--roxo-cl)}
+.sec{color:var(--roxo)}
+.sec::after{background:var(--line)}
+th{background:var(--navy)}
+tr.final{background:var(--navy)}
+tr.final td.cur{background:#2B1A44}
+.toast{background:var(--navy)}
+
+/* cabeçalho do relatório */
+header.ph{border-bottom:3px solid transparent;border-image:linear-gradient(90deg,var(--azul),var(--roxo)) 1}
+.rico{width:40px;height:40px;flex:none}
+.brand{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.brand .rmarca{height:30px;width:auto}
+.brand span{font-size:10px;color:var(--muted)}
+
+/* página "posição de clientes" */
+.g4{grid-template-columns:repeat(4,1fr)}
+.ptab{border:1px solid var(--line);border-radius:9px;overflow:auto;flex:1}
+.ptab table{font-size:12px}
+.ptab td{padding:9px 8px}
+.ptab td:first-child{font-weight:600;color:var(--ink)}
+@media (max-width:1050px){ .g4{grid-template-columns:repeat(2,1fr)} }
+
+/* login (consultor e cliente) */
+.login{text-align:left;box-shadow:0 10px 30px rgba(58,36,89,.08);position:relative;overflow:hidden}
+.login::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,var(--azul),var(--roxo))}
+.login .loginlogo{display:block;width:150px;margin:4px auto 20px}
+.login h1{text-align:center}
+.login p{text-align:center}
+
+/* =====================================================================
+   MODO TV
+   ===================================================================== */
+#tvbar{display:none}
+body.tv{overflow:hidden;background:radial-gradient(circle at 20% 0%,#3A2459 0%,#1D1430 70%)}
+body.tv .top,body.tv .emphead,body.tv .toolbar,body.tv .empty,body.tv #status,body.tv .login{display:none!important}
+body.tv main{padding:0;max-width:none}
+body.tv #report .page{display:none}
+body.tv #report .page.tv-cur{display:flex;position:fixed;left:50%;top:calc(50% - 26px);width:1600px;transform-origin:center center;
+  border:0;box-shadow:0 30px 80px rgba(0,0,0,.45);animation:tvIn .5s ease}
+body.tv .card .cv{height:310px}
+body.tv .dre{max-height:none;overflow:visible}
+body.tv th{position:static}
+@keyframes tvIn{from{opacity:0}to{opacity:1}}
+body.tv #tvbar{display:flex;position:fixed;left:0;right:0;bottom:0;height:52px;align-items:center;gap:14px;padding:0 20px;color:#fff;z-index:40;
+  background:linear-gradient(0deg,rgba(20,13,33,.9),rgba(20,13,33,.55));transition:opacity .4s}
+body.tv.tv-idle #tvbar{opacity:.0} body.tv.tv-idle{cursor:none}
+#tvbar .tvlogo{height:26px;width:auto;opacity:.95}
+#tvbar .tvt{font-family:"Exo 2",Inter,sans-serif;font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tvbar .tvc{font-size:12px;opacity:.7;margin-right:auto;white-space:nowrap}
+#tvbar button{background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:8px;padding:8px 12px;font-weight:600;font-size:13px;cursor:pointer}
+#tvbar button:hover{background:rgba(255,255,255,.22)}
+#tvprog{position:fixed;left:0;bottom:52px;height:3px;width:0;background:linear-gradient(90deg,var(--azul),var(--roxo));z-index:41;display:none}
+body.tv #tvprog{display:block}
+body.tv.tv-idle #tvprog{bottom:0}
+
+@media (max-width:600px){
+  .brandmini .app{display:none}
+  .brandmini .wm{height:22px}
+  .rico{width:32px;height:32px}
+  .g4{grid-template-columns:repeat(2,1fr)}
+}
+@media print{ #tvbar,#tvprog{display:none!important} }
+.ptab tr.final td,.ptab tr.final td:first-child{color:#fff}
+.ptab tr.final td.neg{color:#FFB4B4}
+
+/* ---------- calendário de contas a pagar ---------- */
+.calnav{display:flex;align-items:center;gap:10px}
+.calnav b{font-family:"Exo 2",Inter,sans-serif;font-size:17px;min-width:170px;text-align:center}
+.calnav button{border:1px solid #D9D3E3;background:#fff;border-radius:8px;width:34px;height:32px;font-size:18px;cursor:pointer;color:var(--ink)}
+.calnav button:hover{background:var(--roxo-cl)}
+.calnav .hojeb{width:auto;padding:0 12px;font-size:12.5px;font-weight:600;color:var(--roxo)}
+.cal{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.calh{display:grid;grid-template-columns:repeat(7,1fr);background:var(--navy);color:#fff;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+.calh div{padding:8px 10px}
+.calg{display:grid;grid-template-columns:repeat(7,1fr)}
+.cd{min-height:118px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 6px 8px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.cd:nth-child(7n){border-right:0}
+.cd.fora{background:#FAF9FC}
+.cd.fds{background:#FCFBFD}
+.cd.pass{background:#F7F6F9}
+.cd.pass .ev2{opacity:.55}
+.cdh{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+.cdh .dn{font-size:12.5px;font-weight:600;color:#4A4458;width:26px;height:26px;display:grid;place-items:center;border-radius:50%}
+.cd.hoje{background:#FBF5FA;box-shadow:inset 0 0 0 2px var(--roxo)}
+.cd.hoje .dn{background:var(--roxo);color:#fff}
+.cdh .dt{font-size:10.5px;font-weight:700;color:var(--muted)}
+.ev2{background:var(--azul-cl);border-left:4px solid var(--azul);border-radius:5px;padding:4px 7px;display:flex;flex-direction:column;min-width:0}
+.ev2:nth-of-type(even){background:var(--roxo-cl);border-left-color:var(--roxo)}
+.ev2 b{font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.ev2 span{font-size:11px;color:#4A4458;font-variant-numeric:tabular-nums}
+.mais{font-size:10.5px;font-weight:600;color:var(--roxo);padding-left:4px}
+.agenda{display:none;flex-direction:column;gap:8px}
+.ag{display:flex;gap:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px}
+.ag.hoje{box-shadow:inset 0 0 0 2px var(--roxo)}
+.ag.pass{opacity:.6}
+.agd{width:42px;text-align:center;flex:none}
+.agd b{display:block;font-family:"Exo 2",Inter,sans-serif;font-size:20px;color:var(--roxo)}
+.agd span{font-size:11px;color:var(--muted)}
+.agl{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}
+.ag .ev2{flex-direction:row;justify-content:space-between;gap:8px}
+body.tv .calnav{display:none}
+body.tv .cd{min-height:132px}
+@media (max-width:700px){ .cal,.calnav .hojeb{display:none} .agenda{display:flex} }
+@media print{ .calnav{display:none} .cal{display:block!important} .agenda{display:none!important} }
+
+/* ---------- editor de contas (consultor) ---------- */
+.contasbox{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:16px}
+.cbh{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.cbh h3{font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--roxo)}
+.cbh .cbs{font-size:12px;color:var(--muted);margin-right:auto}
+.ctab{width:100%;border-collapse:collapse;font-size:13px}
+.ctab th{position:static;background:var(--bg);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;text-align:left;padding:7px 6px;border-bottom:1px solid var(--line)}
+.ctab td{padding:4px 4px;border-bottom:1px solid #F1EEF5;text-align:left;position:static;background:transparent}
+.ctab td:first-child{position:static;padding-left:4px}
+.ctab input{width:100%;font:inherit;font-size:13px;padding:7px 8px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--ink)}
+.ctab input:hover{border-color:var(--line)}
+.ctab input:focus{outline:none;border-color:var(--roxo);background:#fff}
+.ctab tr.novo input{border-color:#D9D3E3;background:#fff}
+.ctab tr.pass input{color:#9A93A8}
+.ctab .cv2{width:140px} .ctab .cd2{width:160px} .ctab .ca{width:96px;text-align:right}
+.ctab .x{border:0;background:none;color:#A0A8B4;font-size:17px;cursor:pointer;padding:4px 8px;border-radius:6px}
+.ctab .x:hover{color:#C63A3A;background:#FDECEC}
+.ctab tr.salvando input{background:#FFFBEA}
+.ctab tr.erro input{background:#FDECEC}
+.cscroll{max-height:340px;overflow:auto}
+.mbox textarea{width:100%;min-height:180px;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:10px;border:1px solid #D9D3E3;border-radius:9px;resize:vertical}
+@media (max-width:600px){ .ctab .cv2{width:100px} .ctab .cd2{width:130px} .ctab .ca{width:44px} .ctab .ca .lbl{display:none} }
+.toolbar.so-cal #mode,.toolbar.so-cal label{display:none}

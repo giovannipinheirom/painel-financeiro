@@ -2,6 +2,7 @@
    Usado pela página do consultor (index.html) e pela do cliente (cliente.html). */
 let EMP_NOME = '';
 let REPORT_EL = null;
+let REPORT_OPTS = { posicao:false, extra:0 };   // extra: páginas acrescentadas depois (calendário)   // posicao: inclui a página "Posição de clientes"
 
 /* =====================================================================
    1. LEITURA DA PLANILHA
@@ -172,18 +173,18 @@ const curto = v => { const a=Math.abs(v), s=v<0?'−':''; return a>=1e6? `${s}R$
 const delta = (v, label, goodUp=true) => label==null? '' : `<span class="${(v>=0)===goodUp?'up':'dn'}">${v>=0?'▲':'▼'} ${sig(v)}</span> vs ${label}`;
 const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-const C = {bb:'#E3BE00',sic:'#3E8E41',sicL:'#8CC08E',stone:'#21B573',cora:'#D85FB8',fat:'#3D7FD1',rec:'#6AA84F',sai:'#D9661F',pos:'#2E9E5B',neg:'#D64545',navy:'#1F3A5F',gold:'#E0A100'};
+const C = {bb:'#E3BE00',sic:'#3E8E41',sicL:'#8CC08E',stone:'#21B573',cora:'#D85FB8',fat:'#566BAF',rec:'#902884',sai:'#E07A2E',pos:'#2E9E5B',neg:'#D64545',navy:'#3A2459',gold:'#E0A100',roxo:'#902884',azul:'#566BAF',aberto:'#E0A100',vencido:'#C0392B',recebido:'#566BAF'};
 const BANK_COLORS = {bb:C.bb, stone:C.stone, sicredi:C.sic, cora:C.cora};
 const bankColor = name => BANK_COLORS[norm(name).split(' ')[0]] || '#7C8796';
-const FIN_COLORS = ['#7A3E9D','#B5487A','#D9661F','#E0A100','#3D7FD1','#2E9E5B','#7C8796','#A04A1A'];
+const FIN_COLORS = ['#902884','#B5487A','#D9661F','#E0A100','#3D7FD1','#2E9E5B','#7C8796','#A04A1A'];
 
 /* =====================================================================
    4. MONTAGEM DO RELATÓRIO
    ===================================================================== */
 let charts=[];
 function header(title, sub){
-  return `<header class="ph"><div class="logo"><div class="ev">EV</div><div class="ttl"><h1>${title}</h1><p><b class="cli">${esc(EMP_NOME)}</b> · ${sub}</p></div></div>
-  <div class="brand"><b>inova com valor</b>Evolução Financeira</div></header>`;
+  return `<header class="ph"><div class="logo"><img class="rico" src="/img/icone.png" alt=""><div class="ttl"><h1>${title}</h1><p><b class="cli">${esc(EMP_NOME)}</b> · ${sub}</p></div></div>
+  <div class="brand"><img class="rmarca" src="/img/marca.png" alt="inova com valor"><span>Evolução Financeira</span></div></header>`;
 }
 const footer = (p,n,txt) => `<footer class="pf"><span>${txt}</span><span>${p} / ${n}</span></footer>`;
 
@@ -197,7 +198,7 @@ function render(model, mode, m){
   const bal = (arr,i) => i==null? null : (arr[i] ?? 0);
   const saldoTotal = i => i==null? null : ['bb','stone','sic','cora','rende','aplSic'].reduce((a,k)=>a+(ct[k][i]??0),0);
   const footTxt = `Evolução Financeira ${model.ano} · ${esc(EMP_NOME)}${model.ate?` · lançamentos até ${model.ate}`:''}`;
-  const NP = 6;
+  const NP = (REPORT_OPTS.posicao ? 7 : 6) + (REPORT_OPTS.extra||0);
 
   /* ---------- página 1 ---------- */
   const isAnual = mode==='anual';
@@ -209,11 +210,11 @@ function render(model, mode, m){
     ['Faturamento bruto', brl(fat), dlt(fat, SP(model.fat)), C.fat],
     ['Receita bruta', brl(rb), dlt(rb, SP(model.rb)), C.rec],
     ['Saídas', brl(sai), dlt(sai, SP(model.saidas), false), C.sai],
-    ['Resultado líquido', `<span class="${rl<0?'neg':''}">${brl(rl)}</span>`, dlt(rl, SP(model.rl)), '#2F6DB5'],
-    ['Margem líquida', `<span class="${marg<0?'neg':''}">${pct(marg)}</span>`, isAnual? 'margem acumulada no ano' : (margPrev==null?'':`${P.vs}: ${pct(margPrev)}`), '#6A3FA0'],
+    ['Resultado líquido', `<span class="${rl<0?'neg':''}">${brl(rl)}</span>`, dlt(rl, SP(model.rl)), C.navy],
+    ['Margem líquida', `<span class="${marg<0?'neg':''}">${pct(marg)}</span>`, isAnual? 'margem acumulada no ano' : (margPrev==null?'':`${P.vs}: ${pct(margPrev)}`), '#B5487A'],
     mode==='mensal'
       ? ['Saldo total', brl(sT), (sTp==null?'':delta(sT-sTp,P.vs))+'<br>contas + aplicações', '#4A5160']
-      : ['Despesas financeiras', brl(fin), dlt(fin, P.prev? -SP(model.fin):null, false), '#7A3E9D'],
+      : ['Despesas financeiras', brl(fin), dlt(fin, P.prev? -SP(model.fin):null, false), C.roxo],
   ];
   const bancos = [
     ['BB · conta', ct.bb, C.bb], ['BB · Rende Fácil', ct.rende, C.bb],
@@ -225,7 +226,7 @@ function render(model, mode, m){
   const cartTot = b => model.cart[b].reduce((a,x)=>a+x,0);
   const cartAll = cartNames.reduce((a,b)=>a+cartTot(b),0) || 1;
   const colT = j => cartNames.reduce((a,b)=>a+model.cart[b][j],0);
-  const kC = [['Recebido',colT(0),'#1F4E79'],['Em aberto',colT(1),'#E0A100'],['Vencido',colT(2),'#A04A1A']];
+  const kC = [['Recebido',colT(0),C.recebido],['Em aberto',colT(1),C.aberto],['Vencido',colT(2),C.vencido]];
 
   // destaques automáticos
   const notes=[];
@@ -244,7 +245,7 @@ function render(model, mode, m){
   }
   if(model.finKids.length){
     const kids=model.finKids.map(k=>[k.label,-S(k.vals)]).sort((a,b)=>b[1]-a[1]);
-    notes.push(['#7A3E9D', `<b>Despesas financeiras de ${curto(fin)}</b> (${pct(rb?fin/rb:0)} da receita). Maiores itens: ${kids.slice(0,2).map(([l,v])=>`${l.toLowerCase()} (${curto(v)})`).join(' e ')}.`]);
+    notes.push([C.roxo, `<b>Despesas financeiras de ${curto(fin)}</b> (${pct(rb?fin/rb:0)} da receita). Maiores itens: ${kids.slice(0,2).map(([l,v])=>`${l.toLowerCase()} (${curto(v)})`).join(' e ')}.`]);
   }
   notes.push([C.navy, `<b>Saldo total de ${curto(sT)}</b>${sTp!=null?` (${sig(sT-sTp)} vs ${vsSaldo})`:''}, ${pct(saldoTotal(P.end)? (bal(ct.rende,P.end)+bal(ct.aplSic,P.end))/sT : 0)} aplicado. Carteira com <b>${pct(colT(0)/cartAll)} recebido</b>${colT(1)?`; ${curto(colT(1))} em aberto`:''}${colT(2)?` e ${curto(colT(2))} vencidos`:''}.`]);
 
@@ -320,6 +321,30 @@ function render(model, mode, m){
       <div class="card"><h3>Saldo das aplicações</h3><div class="sub">R$ no fim de cada ${mode==='trimestral'?'trimestre':'mês'}</div><div class="cv"><canvas id="c_apl"></canvas></div></div>
     </div>${footer(6,NP,footTxt)}</section>`;
 
+  /* ---------- página 7: posição de clientes (opcional por empresa) ---------- */
+  const bancosPos = ['BB','Cora','Stone','Sicredi'].filter(b=>model.cart[b]).concat(cartNames.filter(b=>!['BB','Cora','Stone','Sicredi'].includes(b)));
+  if(REPORT_OPTS.posicao){
+    const pr = bancosPos.map(b=>{ const [rec,ab,ve]=model.cart[b]; return {b, rec, ab, ve, ar:ab+ve}; });
+    const tAb=pr.reduce((a,x)=>a+x.ab,0), tVe=pr.reduce((a,x)=>a+x.ve,0), tRec=pr.reduce((a,x)=>a+x.rec,0), tAr=tAb+tVe;
+    const maior = pr.slice().sort((a,b)=>b.ar-a.ar)[0];
+    const kP = [
+      ['Total a receber', brl(tAr), `em aberto + vencido · ${pr.length} banco(s)`, C.roxo],
+      ['A vencer (em aberto)', brl(tAb), `${pct(tAr?tAb/tAr:0)} do a receber`, C.aberto],
+      ['Vencido', `<span class="${tVe>0?'neg':''}">${brl(tVe)}</span>`, `${pct(tAr?tVe/tAr:0)} do a receber`, C.vencido],
+      ['Maior saldo a receber', maior&&maior.ar>0? esc(maior.b) : '—', maior&&maior.ar>0? `${brl(maior.ar)} · ${pct(tAr?maior.ar/tAr:0)} do total` : 'nada a receber', C.azul],
+    ];
+    const linha = (x,cls='') => `<tr class="${cls}"><td>${esc(x.b)}</td><td>${int(x.rec)}</td><td>${int(x.ab)}</td><td class="${x.ve>0.5?'neg':''}">${int(x.ve)}</td><td class="t">${int(x.ar)}</td><td class="pct">${pct(tAr?x.ar/tAr:0)}</td></tr>`;
+    html += `<section class="page">${header('Posição de clientes', 'Títulos do ano por banco · a receber = em aberto (a vencer) + vencido')}
+      <div><div class="sec">Quanto falta receber <span>· acumulado do ano</span></div>
+        <div class="grid g4">${kP.map(([l,v,d,c])=>`<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('')}</div></div>
+      <div class="grid g2b fill">
+        <div class="card"><h3>A receber por banco</h3><div class="sub">R$ · em aberto (a vencer) + vencido</div><div class="cv"><canvas id="c_receber"></canvas></div></div>
+        <div class="card"><h3>Posição por banco</h3><div class="sub">R$ · títulos do ano</div>
+          <div class="ptab"><table><tr><th>Banco</th><th>Recebido</th><th>Em aberto</th><th>Vencido</th><th>A receber</th><th>% do total</th></tr>
+            ${pr.map(x=>linha(x)).join('')}${linha({b:'Total',rec:tRec,ab:tAb,ve:tVe,ar:tAr},'final')}</table></div></div>
+      </div>${footer(7,NP,footTxt)}</section>`;
+  }
+
   REPORT_EL.innerHTML = html;
 
   /* ---------- gráficos ---------- */
@@ -371,7 +396,7 @@ function render(model, mode, m){
     plugins:[{id:'lbl',afterDatasetDraw(ch){const {ctx}=ch;const meta=ch.getDatasetMeta(0);ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
       meta.data.forEach((a,i)=>{const v=ch.data.datasets[0].data[i];if(v<5)return;const p=a.tooltipPosition();ctx.font='600 11px '+Chart.defaults.font.family;ctx.fillStyle='#fff';ctx.fillText(Math.round(v)+'%',p.x,p.y);});
       const c=meta.data[0];ctx.fillStyle='#1B2433';ctx.font='700 15px '+Chart.defaults.font.family;ctx.fillText(curto(cartAll),c.x,c.y-6);ctx.font='500 9.5px '+Chart.defaults.font.family;ctx.fillStyle='#6B7686';ctx.fillText('em títulos no ano',c.x,c.y+10);ctx.restore();}}]});
-  mk('c_pos',{type:'bar',data:{labels:cn,datasets:[['Recebido','#1F4E79'],['Em aberto','#E0A100'],['Vencido','#A04A1A']].map(([n,c],j)=>bar(n,cn.map(b=>model.cart[b][j]/(cartTot(b)||1)*100),c,{stack:'p'}))},
+  mk('c_pos',{type:'bar',data:{labels:cn,datasets:[['Recebido',C.recebido],['Em aberto',C.aberto],['Vencido',C.vencido]].map(([n,c],j)=>bar(n,cn.map(b=>model.cart[b][j]/(cartTot(b)||1)*100),c,{stack:'p'}))},
     options:{indexAxis:'y',elements:{bar:{borderRadius:0}},datasets:{bar:{maxBarThickness:20}},scales:{x:{stacked:true,max:100,grid:{color:'#EEF1F5'},border:{display:false},ticks:{callback:v=>v+'%'}},y:{stacked:true,grid:{display:false}}}}});
 
   const hbar = (id, items, color) => {
@@ -384,7 +409,7 @@ function render(model, mode, m){
   const cats = model.saidasCats.map(r=>[r.label.replace(/^\(−\)\s*/,''), -S(r.vals)]).filter(x=>Math.abs(x[1])>0.5).sort((a,b)=>b[1]-a[1]);
   hbar('c_cat', cats, C.sai);
   const fk = model.finKids.map(r=>[r.label, -S(r.vals)]).filter(x=>Math.abs(x[1])>0.5).sort((a,b)=>b[1]-a[1]);
-  hbar('c_fin', fk, '#7A3E9D');
+  hbar('c_fin', fk, C.roxo);
 
   mk('c_bb',{data:{labels:L,datasets:[line('Total BB',rende.map((v,i)=>v+endOf(ct.bb)[i]),'#7A6500',{order:0}),bar('Rende Fácil',rende,C.bb,{stack:'b',order:1}),bar('Conta BB',endOf(ct.bb),'#F3DD6B',{stack:'b',order:1})]},options:{scales:{x:{...xC,stacked:true},y:yK({stacked:true,beginAtZero:true})}}});
   mk('c_sic',{data:{labels:L,datasets:[line('Total Sicredi',aplSic.map((v,i)=>v+endOf(ct.sic)[i]),'#1D4D20',{order:0}),bar('Aplicação',aplSic,C.sic,{stack:'b',order:1}),bar('Conta Sicredi',endOf(ct.sic),C.sicL,{stack:'b',order:1})]},options:{scales:{x:{...xC,stacked:true},y:yK({stacked:true,beginAtZero:true})}}});
@@ -399,6 +424,17 @@ function render(model, mode, m){
   mk('c_rendbk',{type:'bar',data:{labels:L,datasets:[bar('Sicredi',rendSic,C.sic,{stack:'r'}),bar('BB',rendBB,C.bb,{stack:'r'})]},options:{scales:{x:{...xC,stacked:true},y:{...plain,stacked:true}}}});
   mk('c_apl',{type:'line',data:{labels:L,datasets:[line('Total aplicado',aplicado,C.navy,{borderWidth:3}),line('Aplicação Sicredi',aplSic,C.sic),line('Rende Fácil BB',rende,C.bb)]},options:{scales:{x:xC,y:yK({beginAtZero:true})}}});
 
+  if(REPORT_OPTS.posicao && document.getElementById('c_receber')){
+    const ab = bancosPos.map(b=>model.cart[b][1]), ve = bancosPos.map(b=>model.cart[b][2]);
+    mk('c_receber',{type:'bar',data:{labels:bancosPos,datasets:[bar('Em aberto (a vencer)',ab,C.aberto,{stack:'r'}),bar('Vencido',ve,C.vencido,{stack:'r'})]},
+      options:{indexAxis:'y',layout:{padding:{right:86}},elements:{bar:{borderRadius:0}},datasets:{bar:{maxBarThickness:34}},
+        scales:{x:{stacked:true,beginAtZero:true,grid:{color:'#EEF1F5'},border:{display:false},ticks:{callback:v=>kfmt(v)}},
+                y:{stacked:true,grid:{display:false},border:{color:'#D5DBE3'},ticks:{color:'#241A33',font:{size:11,weight:'600'}}}}},
+      plugins:[{id:'tot',afterDatasetsDraw(ch){ const {ctx}=ch; const m0=ch.getDatasetMeta(0), m1=ch.getDatasetMeta(1);
+        ctx.save(); ctx.textBaseline='middle'; ctx.font='700 11px '+Chart.defaults.font.family; ctx.fillStyle='#241A33';
+        bancosPos.forEach((b,i)=>{ const e0=m0.data[i], e1=m1.data[i]; if(!e0) return; const x=Math.max(e0.x, e1&&!m1.hidden?e1.x:0, e0.base);
+          ctx.fillText(curto(ab[i]+ve[i]), x+6, e0.y); }); ctx.restore(); }}]});
+  }
   window.__ready = true;
 }
 
@@ -424,3 +460,70 @@ const diaBR = iso => iso? new Date(iso).toLocaleDateString('pt-BR') : '';
 let _toastT; function toast(msg){ const t=$('toast'); if(!t) return; t.textContent=msg; t.classList.add('show'); clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.remove('show'),3200); }
 function setEmpty(t, s){ const el=$('empty'); if(t==null){ el.hidden=true; return; } el.hidden=false; el.innerHTML=''; const b=document.createElement('b'); b.textContent=t; el.append(b, document.createTextNode(s||'')); }
 function libsOk(){ return typeof XLSX!=='undefined' && typeof Chart!=='undefined'; }
+
+
+/* =====================================================================
+   6. CALENDÁRIO DE CONTAS A PAGAR (estilo agenda do Teams)
+   ===================================================================== */
+const DIAS_SEM = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const isoDe = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const hojeISO = () => isoDe(new Date());
+const mesAtual = () => hojeISO().slice(0,7);
+function mesMais(mes, n){ let [a,m]=mes.split('-').map(Number); m+=n; while(m>12){m-=12;a++;} while(m<1){m+=12;a--;} return a+'-'+String(m).padStart(2,'0'); }
+const nomeMes = mes => { const [a,m]=mes.split('-').map(Number); return MESES_LONGO[m-1][0].toUpperCase()+MESES_LONGO[m-1].slice(1)+' '+a; };
+const dataCurta = iso => iso.slice(8,10)+'/'+iso.slice(5,7);
+
+function calendarioHTML(itens, mes){
+  const [a,m] = mes.split('-').map(Number);
+  const hoje = hojeISO();
+  const doMes = (itens||[]).filter(x=>x.vencimento.startsWith(mes)).sort((x,y)=>x.vencimento.localeCompare(y.vencimento)||y.valor-x.valor);
+  const porDia = {}; doMes.forEach(x=>{ (porDia[+x.vencimento.slice(8)] ||= []).push(x); });
+  const soma = l => l.reduce((t,x)=>t+x.valor,0);
+  const total = soma(doMes);
+  const passadas = doMes.filter(x=>x.vencimento<hoje);
+  const d0=new Date(); const ini=new Date(d0.getFullYear(),d0.getMonth(),d0.getDate()-d0.getDay()), fim=new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+6);
+  const semana = doMes.filter(x=>x.vencimento>=isoDe(ini) && x.vencimento<=isoDe(fim));
+  const proxima = doMes.find(x=>x.vencimento>=hoje);
+  const ehMesAtual = mes===hoje.slice(0,7);
+  const kpis = [
+    ['Total do mês', brl(total), `${doMes.length} conta(s) a pagar`, C.roxo],
+    ehMesAtual ? ['Vencem nesta semana', brl(soma(semana)), `${semana.length} conta(s) · ${dataCurta(isoDe(ini))} a ${dataCurta(isoDe(fim))}`, C.aberto]
+               : ['Maior conta do mês', doMes.length? brl(Math.max(...doMes.map(x=>x.valor))) : '—', doMes.length? esc(doMes.slice().sort((x,y)=>y.valor-x.valor)[0].recebedor) : 'nenhuma conta', C.aberto],
+    ['Já venceram', brl(soma(passadas)), `${passadas.length} conta(s) com data antes de hoje`, '#7C8796'],
+    ['Próximo vencimento', proxima? dataCurta(proxima.vencimento) : '—', proxima? `${esc(proxima.recebedor)} · ${brl(proxima.valor)}` : 'nada a vencer neste mês', C.azul],
+  ];
+  const MAXC = 3;
+  const primeiro = new Date(a,m-1,1).getDay(), nd = new Date(a,m,0).getDate();
+  let cels = '';
+  for(let i=0;i<primeiro;i++) cels += '<div class="cd fora"></div>';
+  for(let d=1; d<=nd; d++){
+    const iso = mes+'-'+String(d).padStart(2,'0'), l = porDia[d]||[];
+    const cls = ['cd', iso<hoje?'pass':'', iso===hoje?'hoje':'', (new Date(a,m-1,d).getDay()%6===0)?'fds':''].join(' ');
+    cels += `<div class="${cls}"><div class="cdh"><span class="dn">${d}</span>${l.length?`<span class="dt">${curto(soma(l))}</span>`:''}</div>`
+      + l.slice(0,MAXC).map(x=>`<div class="ev2" title="${esc(x.recebedor)} · ${brl(x.valor)}"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('')
+      + (l.length>MAXC?`<div class="mais">+${l.length-MAXC} conta(s) · ${curto(soma(l.slice(MAXC)))}</div>`:'') + '</div>';
+  }
+  const resto = (7 - (primeiro+nd)%7) % 7;
+  for(let i=0;i<resto;i++) cels += '<div class="cd fora"></div>';
+  const agenda = Object.keys(porDia).map(Number).sort((x,y)=>x-y).map(d=>{
+    const iso = mes+'-'+String(d).padStart(2,'0'), l = porDia[d];
+    return `<div class="ag ${iso<hoje?'pass':''} ${iso===hoje?'hoje':''}"><div class="agd"><b>${d}</b><span>${DIAS_SEM[new Date(a,m-1,d).getDay()]}</span></div><div class="agl">`
+      + l.map(x=>`<div class="ev2"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('') + '</div></div>';
+  }).join('') || '<div class="nodata">Nenhuma conta neste mês.</div>';
+  const n = (REPORT_EL ? REPORT_EL.querySelectorAll('.page:not(.cal-page)').length : 0) + 1;
+  return `<section class="page cal-page">${header(`Contas a pagar — ${nomeMes(mes)}`, 'Vencimentos do mês · boletos cadastrados pelo consultor')}
+    <div class="grid g4">${kpis.map(([l,v,d,c])=>`<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('')}</div>
+    <div class="calnav"><button type="button" data-cal="-1" aria-label="Mês anterior">‹</button><b>${nomeMes(mes)}</b><button type="button" data-cal="1" aria-label="Próximo mês">›</button>${ehMesAtual?'':'<button type="button" data-cal="0" class="hojeb">Hoje</button>'}</div>
+    <div class="cal"><div class="calh">${DIAS_SEM.map(d=>`<div>${d}</div>`).join('')}</div><div class="calg">${cels}</div></div>
+    <div class="agenda">${agenda}</div>
+    ${footer(n, n, `Contas a pagar · ${esc(EMP_NOME)}`)}</section>`;
+}
+function anexarCalendario(itens, mes){
+  if(!REPORT_EL) return;
+  const velho = REPORT_EL.querySelector('.cal-page');
+  const div = document.createElement('div'); div.innerHTML = calendarioHTML(itens, mes);
+  const novo = div.firstElementChild;
+  if(velho){ if(velho.classList.contains('tv-cur')){ novo.classList.add('tv-cur'); } velho.replaceWith(novo); }
+  else REPORT_EL.append(novo);
+  return novo;
+}

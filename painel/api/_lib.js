@@ -7,7 +7,7 @@ const LOCAL = /@(localhost|127\.0\.0\.1)[:/]/.test(DB_URL);
 
 // max:1 porque cada função da Vercel abre a própria conexão.
 // prepare:false para funcionar com poolers (Neon, Supabase, PgBouncer).
-const sql = DB_URL ? postgres(DB_URL, { max: 1, idle_timeout: 20, connect_timeout: 15, prepare: false, ssl: LOCAL ? false : 'require' }) : null;
+const sql = DB_URL ? postgres(DB_URL, { max: 1, idle_timeout: 20, connect_timeout: 15, prepare: false, onnotice: () => {}, ssl: LOCAL ? false : 'require' }) : null;
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; this.expose = true; }
@@ -36,6 +36,21 @@ async function migrar() {
     modelo jsonb not null
   )`;
   await sql`create index if not exists relatorios_empresa_data on relatorios (empresa_id, enviado_em desc)`;
+  // v2: senha do cliente e opção "posição de clientes" (vale também para as empresas já cadastradas)
+  await sql`alter table empresas add column if not exists senha_hash text`;
+  await sql`alter table empresas add column if not exists senha_em timestamptz`;
+  await sql`alter table empresas add column if not exists posicao_clientes boolean not null default true`;
+  // v3: calendário de contas a pagar
+  await sql`alter table empresas add column if not exists contas_pagar boolean not null default false`;
+  await sql`create table if not exists contas_pagar (
+    id text primary key,
+    empresa_id text not null references empresas(id) on delete cascade,
+    recebedor text not null,
+    valor numeric(14,2) not null,
+    vencimento date not null,
+    criado_em timestamptz not null default now()
+  )`;
+  await sql`create index if not exists contas_pagar_empresa_venc on contas_pagar (empresa_id, vencimento)`;
 }
 export async function db() {
   if (!sql) throw new HttpError(500, 'Banco não configurado: defina DATABASE_URL nas variáveis de ambiente da Vercel.');
@@ -95,6 +110,36 @@ export function exigirAdmin(req) {
   if (!ehAdmin(req)) throw new HttpError(401, 'Faça login para continuar.');
 }
 
+// ---------- senha e sessão do cliente ----------
+export function hashSenha(senha) {
+  const salt = crypto.randomBytes(16);
+  const h = crypto.scryptSync(String(senha), salt, 32);
+  return 's1$' + salt.toString('base64url') + '$' + h.toString('base64url');
+}
+export function confereSenha(senha, guardado) {
+  const [v, salt, h] = String(guardado || '').split('$');
+  if (v !== 's1' || !salt || !h) return false;
+  const x = crypto.scryptSync(String(senha || ''), Buffer.from(salt, 'base64url'), 32);
+  const y = Buffer.from(h, 'base64url');
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+// A assinatura inclui o hash da senha: trocar a senha desconecta todo mundo daquele cliente.
+const assinarCli = (empId, exp, senhaHash) => crypto.createHmac('sha256', SECRET).update(`cli:${empId}:${exp}:${senhaHash}`).digest('base64url');
+export function abrirSessaoCliente(req, res, empId, senhaHash) {
+  if (!SECRET) throw new HttpError(500, 'Defina SESSION_SECRET nas variáveis de ambiente da Vercel.');
+  const exp = Date.now() + DIAS * 864e5;
+  res.setHeader('Set-Cookie', `cli_${empId}=${exp}.${assinarCli(empId, exp, senhaHash)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${DIAS * 86400}${seguro(req) ? '; Secure' : ''}`);
+}
+export function fecharSessaoCliente(req, res, empId) {
+  res.setHeader('Set-Cookie', `cli_${empId}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${seguro(req) ? '; Secure' : ''}`);
+}
+export function clienteLogado(req, empId, senhaHash) {
+  if (!SECRET || !senhaHash) return false;
+  const [exp, sig] = String(cookies(req)['cli_' + empId] || '').split('.');
+  if (!exp || !sig || !(+exp > Date.now())) return false;
+  return igual(sig, assinarCli(empId, exp, senhaHash));
+}
+
 // ---------- utilidades de resposta ----------
 export function rota(fn) {
   return async (req, res) => {
@@ -117,4 +162,4 @@ export function corpo(req) {
   return {};
 }
 export const texto = (v, max) => (v == null ? '' : String(v)).trim().slice(0, max);
-export const CORES = ['#1F3A5F', '#2F6DB5', '#2E9E5B', '#6A3FA0', '#D9661F', '#B5487A', '#0F7C86', '#7A6500'];
+export const CORES = ['#902884', '#566BAF', '#3A2459', '#2E9E5B', '#D9661F', '#B5487A', '#0F7C86', '#7A6500'];

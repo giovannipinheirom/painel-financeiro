@@ -3,7 +3,10 @@
 Site para o consultor cadastrar empresas, enviar a planilha de conciliação de cada mês e mandar para cada cliente um link do painel dele.
 
 - **Área do consultor** (`/`): fica protegida por senha. Nela você cadastra empresas, vê os cards, arrasta a planilha nova, consulta o histórico de envios e copia ou troca o link de cada cliente.
-- **Painel do cliente** (`/c/<código>`): abre sem login e mostra só a empresa daquele link. O cliente pode trocar entre visão mensal, trimestral e anual, escolher uma das últimas 12 versões e baixar o PDF.
+- **Painel do cliente** (`/c/<código>`): pede a **senha que você definiu** para aquela empresa e mostra só os dados dela. O cliente pode trocar entre visão mensal, trimestral e anual, escolher uma das últimas 12 versões, baixar o PDF e ligar o **Modo TV**.
+- **Modo TV**: o painel abre em tela cheia e passa uma página a cada 15 segundos. A cada 5 minutos ele busca os dados de novo, então uma planilha nova aparece sozinha na TV. Use as setas do teclado para avançar ou voltar, a barra de espaço para pausar e Esc para sair.
+- **Calendário de contas a pagar** (opcional por empresa): você cadastra os boletos no próprio site (recebedor, valor e vencimento), digitando um por um ou colando do Excel. O cliente vê um calendário do mês, no estilo da agenda do Teams, com o dia de hoje destacado, os totais por dia e um resumo do mês. O calendário também passa no modo TV, sempre no mês atual. No celular ele aparece como uma lista por dia.
+- **Posição de clientes** (opcional por empresa): página com o total a receber, quanto está a vencer, quanto está vencido e um gráfico do valor a receber em cada banco. Os números vêm do bloco "Carteira de clientes" da aba Base Dash. A opção vem ligada para as empresas novas e para as que já existiam.
 
 A planilha é lida no navegador. O servidor guarda só o painel já processado (em JSON), e o arquivo original não fica salvo.
 
@@ -45,16 +48,18 @@ Se quiser, adicione um domínio próprio em **Settings → Domains** (por exempl
 ---
 
 ## Uso no dia a dia
-1. **+ Nova empresa** → preencha o nome e, se quiser, o CNPJ, o contato e a cor do card.
+1. **+ Nova empresa** → preencha o nome, a **senha do cliente** (o botão "Gerar" cria uma senha para você) e, se quiser, o CNPJ, o contato e a cor do card. Marque ou desmarque a opção "Posição de clientes". Anote a senha antes de salvar: por segurança ela é guardada criptografada e não aparece mais depois. Se esquecer, defina uma nova em **Editar**.
 2. Abra a empresa e **arraste a planilha** (`.xlsb` ou `.xlsx`, com as abas `DRE FINANCEIRO` e `Base Dash`). Ela vira a versão atual na hora.
-3. **Copiar link do cliente** → mande o link por WhatsApp ou e-mail.
-4. Todo mês, arraste a planilha nova. O cliente usa o mesmo link e já vê a atualização.
-5. Se o link vazar ou o contrato acabar, clique em **gere um link novo** na caixa do link. O link antigo para de funcionar na hora.
+3. **Copiar link do cliente** → mande por WhatsApp ou e-mail. Se você acabou de definir a senha, o texto copiado já inclui a senha junto com o link.
+4. **Contas a pagar** (se a opção estiver ligada): na página da empresa, preencha a linha de cima e aperte Enter, ou clique em **Colar do Excel** e cole as três colunas. Para corrigir uma conta, edite direto na tabela: a alteração salva sozinha.
+5. Todo mês, arraste a planilha nova. O cliente usa o mesmo link e já vê a atualização.
+6. Se o link vazar ou o contrato acabar, clique em **gere um link novo** na caixa do link. O link antigo para de funcionar na hora.
 
 ## Segurança
-- Cada cliente tem um código de 24 caracteres aleatórios, praticamente impossível de adivinhar. Esse código só dá acesso aos dados da própria empresa.
+- Para abrir o painel, o cliente precisa do link **e** da senha. Cada link tem um código aleatório de 24 caracteres e só dá acesso aos dados da própria empresa. A senha é guardada criptografada (scrypt).
+- Trocar a senha em **Editar** desconecta na hora todo mundo que entrou com a senha antiga.
+- Empresas sem senha ficam bloqueadas para o cliente e aparecem com o aviso "sem senha".
 - A área do consultor usa um cookie de sessão assinado, que vale por 30 dias. O botão **Sair** encerra a sessão.
-- Quem tem o link do cliente vê aquele painel. Trate o link como uma senha.
 - As páginas não aparecem no Google (`noindex`) e não enviam o link para outros sites (`no-referrer`).
 
 ## Estrutura
@@ -63,7 +68,8 @@ api/_lib.js        conexão com o Postgres, criação das tabelas, login
 api/login.js       entrar, sair e checar a sessão
 api/empresas.js    cadastro de empresas (consultor)
 api/relatorios.js  envios de planilha e histórico (consultor)
-api/publico.js     dados do painel para o link do cliente
+api/contas.js      contas a pagar (consultor)
+api/publico.js     dados do painel e do calendário para o link do cliente (com senha)
 public/index.html  área do consultor      (+ admin.js)
 public/cliente.html painel do cliente     (+ cliente.js)
 public/report.js   leitura da planilha e montagem do painel (gráficos, DRE)
@@ -72,4 +78,5 @@ public/styles.css  visual
 
 ## Limitações conhecidas
 - O layout do painel segue o modelo de planilha atual. Os blocos de bancos (BB, Sicredi, Stone e Cora) são fixos, então um cliente com outros bancos vê esses blocos zerados.
+- Por enquanto, a página "Posição de clientes" usa o bloco "Carteira de clientes" da Base Dash. Ela vai passar a usar uma planilha própria de importação quando a planilha base for definida.
 - O histórico do cliente mostra as 12 versões mais recentes. O consultor vê até 50.
