@@ -389,11 +389,11 @@ function render(model, mode, m){
   const curIdx = B.length-1;
 
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-  Chart.defaults.font.size = 10; Chart.defaults.color = '#6B7686';
+  Chart.defaults.font.size = 10.5; Chart.defaults.color = '#86868b';
   Chart.defaults.animation = false; Chart.defaults.devicePixelRatio = Math.max(2, window.devicePixelRatio||1); Chart.defaults.maintainAspectRatio = false;
   Chart.defaults.plugins.legend.position = 'bottom';
   Object.assign(Chart.defaults.plugins.legend.labels,{boxWidth:10,boxHeight:10,padding:12});
-  Chart.defaults.elements.bar.borderRadius = 3; Chart.defaults.elements.line.borderWidth = 2.5; Chart.defaults.elements.point.radius = 3;
+  Chart.defaults.elements.bar.borderRadius = 4; Chart.defaults.elements.line.borderWidth = 2.5; Chart.defaults.elements.point.radius = 3;
   Chart.defaults.datasets.bar.maxBarThickness = mode==='trimestral'? 46 : 26;
 
   const yK = (extra={}) => ({ grid:{color:c=>c.tick&&c.tick.value===0?'#9AA3AF':'#EEF1F5'}, border:{display:false}, ticks:{callback:v=>kfmt(v)}, ...extra });
