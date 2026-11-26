@@ -5,9 +5,9 @@ import crypto from 'node:crypto';
 const DB_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
 const LOCAL = /@(localhost|127\.0\.0\.1)[:/]/.test(DB_URL);
 
-// max:1 porque cada função da Vercel abre a própria conexão.
+// Na Vercel cada função abre as próprias conexões (poucas); no servidor próprio o processo é um só e reaproveita.
 // prepare:false para funcionar com poolers (Neon, Supabase, PgBouncer).
-const sql = DB_URL ? postgres(DB_URL, { max: 1, idle_timeout: 20, connect_timeout: 15, prepare: false, onnotice: () => {}, ssl: LOCAL ? false : 'require' }) : null;
+const sql = DB_URL ? postgres(DB_URL, { max: process.env.VERCEL ? 3 : 10, idle_timeout: 20, connect_timeout: 15, prepare: false, onnotice: () => {}, ssl: LOCAL ? false : 'require' }) : null;
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; this.expose = true; }
@@ -15,7 +15,18 @@ export class HttpError extends Error {
 
 // Cria as tabelas na primeira chamada (não precisa rodar SQL na mão).
 let pronto = null;
+const VERSAO_BANCO = 6;
 async function migrar() {
+  try {
+    const [v] = await sql`select v from esquema_versao limit 1`;
+    if (v && v.v >= VERSAO_BANCO) return;
+  } catch { /* tabela ainda não existe: banco novo ou de versão antiga */ }
+  await criarTabelas();
+  await sql`create table if not exists esquema_versao (v int not null)`;
+  await sql`delete from esquema_versao`;
+  await sql`insert into esquema_versao (v) values (${VERSAO_BANCO})`;
+}
+async function criarTabelas() {
   await sql`create table if not exists empresas (
     id text primary key,
     nome text not null,

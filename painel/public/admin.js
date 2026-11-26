@@ -42,7 +42,7 @@ $('vLogin').onsubmit = async ev => {
 $('bSair').onclick = async () => { try{ await api('login',{method:'DELETE'}); }catch(e){} location.hash=''; mostrarLogin(); };
 
 (async function(){
-  if(!libsOk()) showErr('Não consegui carregar as bibliotecas de planilha/gráfico. Recarregue a página.');
+  if(!libsOk()) showErr('Não consegui carregar a biblioteca de gráficos. Recarregue a página.');
   try{ const r=await api('login'); if(r.admin) iniciar(); else mostrarLogin(); }
   catch(e){ setStatus('Não consegui conectar', ' '+e.message); }
 })();
@@ -138,7 +138,7 @@ $('bDelEmp').onclick = async () => {
 /* ---------- página da empresa ---------- */
 function fecharEmpresa(){
   st.seq++; Object.assign(st,{emp:null, rels:[], relId:null, model:null, rendered:null, contas:[], contratos:[], rep:null, calMes:mesAtual()});
-  charts.forEach(c=>c.destroy()); charts=[]; REPORT_EL.innerHTML=''; $('shareBox').hidden=true; showErr('');
+  limparGraficos(); REPORT_EL.innerHTML=''; $('shareBox').hidden=true; showErr('');
   desenharLateral();
 }
 async function abrirEmpresa(id){
@@ -148,7 +148,10 @@ async function abrirEmpresa(id){
   setEmpty('Carregando painel…',''); $('histList').innerHTML='<li class="none">Carregando…</li>';
   try{
     const emp = await api('empresas?id='+id); if(seq!==st.seq) return;
-    st.emp=emp; cabecalho(); await carregarContas(); await carregarContratos(); await carregarRepasses(); await carregarHistorico();
+    st.emp=emp; cabecalho();
+    await Promise.all([carregarContas(), carregarContratos(), carregarRepasses(), carregarHistorico()]);
+    if(seq===st.seq) desenharExtras();
+    (window.requestIdleCallback || setTimeout)(()=>carregarXLSX().catch(()=>{}));
   }catch(e){
     if(seq!==st.seq || e.silent) return;
     $('eNome').textContent='Empresa não encontrada'; setEmpty('Não consegui abrir esta empresa', e.message); $('histList').innerHTML='';
@@ -188,7 +191,7 @@ function desenharHistorico(){
 }
 async function escolherVersao(){
   if(!st.rels.length){
-    $('tbar').hidden=true; charts.forEach(c=>c.destroy()); charts=[]; REPORT_EL.innerHTML=''; st.rendered=null; st.model=null;
+    $('tbar').hidden=true; limparGraficos(); REPORT_EL.innerHTML=''; st.rendered=null; st.model=null;
     setEmpty('Nenhuma planilha ainda','Arraste a planilha de conciliação no quadro acima para montar o painel.');
     return desenharExtras();
   }
@@ -253,6 +256,7 @@ async function enviarPlanilha(file){
   showErr(''); ocupado=true; $('drop').classList.add('busy'); $('dropT').textContent='Lendo '+file.name+'…';
   try{
     if(file.size>40*1024*1024) throw new Error('Arquivo grande demais (máx. 40 MB).');
+    await carregarXLSX();
     const wb=XLSX.read(await file.arrayBuffer(), {type:'array'});
     const modelo=serializeModel(buildModel(wb));
     $('dropT').textContent='Salvando…';
@@ -593,6 +597,7 @@ async function importarRepasses(file){
   if(!file || !st.emp) return;
   $('bRepImp').disabled = true; toast('Lendo a planilha de repasses…');
   try{
+    await carregarXLSX();
     const wb = XLSX.read(await file.arrayBuffer(), {type:'array'});
     const r = lerPlanilhaRepasses(wb);
     st.rep = await api('repasses', {method:'POST', body:{ empresaId: st.emp.id, arquivo: file.name, itens: r.itens }});

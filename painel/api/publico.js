@@ -33,6 +33,13 @@ async function contasDoMes(sql, e, mes) {
 }
 
 async function dados(sql, e, rel, mes) {
+  // consultas independentes começam já e rodam ao mesmo tempo que a do relatório
+  const extras = Promise.all([
+    contasDoMes(sql, e, mes),
+    e.repasses ? repassesDaEmpresa(sql, e) : null,
+    e.contratos ? contratosDaEmpresa(sql, e.id) : null,
+  ]);
+  extras.catch(() => {}); // se a consulta abaixo falhar primeiro, o erro dela é o que vale
   const versoes = await sql`select id, arquivo, enviado_em, ano, ultimo from relatorios
                              where empresa_id = ${e.id} order by enviado_em desc limit 12`;
   const escolhido = rel && versoes.some(v => v.id === rel) ? rel : versoes[0]?.id;
@@ -41,11 +48,12 @@ async function dados(sql, e, rel, mes) {
     const [r] = await sql`select id, arquivo, enviado_em, modelo from relatorios where id = ${escolhido} and empresa_id = ${e.id}`;
     if (r) relatorio = { id: r.id, arquivo: r.arquivo, enviadoEm: r.enviado_em, modelo: r.modelo };
   }
+  const [contas, repasses, contratos] = await extras;
   return {
     empresa: { nome: e.nome, cnpj: e.cnpj, posicao: e.posicao_clientes },
-    contas: await contasDoMes(sql, e, mes),
-    repasses: e.repasses ? await repassesDaEmpresa(sql, e) : null,
-    contratos: e.contratos ? (await contratosDaEmpresa(sql, e.id)).map(c => ({ nome: c.nome, parcelas: c.parcelas.map(p => ({ vencimento: p.vencimento, valor: p.valor })) })) : null,
+    contas,
+    repasses,
+    contratos: contratos ? contratos.map(c => ({ nome: c.nome, parcelas: c.parcelas.map(p => ({ vencimento: p.vencimento, valor: p.valor })) })) : null,
     versoes: versoes.map(v => ({ id: v.id, arquivo: v.arquivo, enviadoEm: v.enviado_em, ano: v.ano, ultimo: v.ultimo })),
     relatorio,
   };

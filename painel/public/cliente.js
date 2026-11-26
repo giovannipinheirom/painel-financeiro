@@ -60,7 +60,7 @@ function mostrar(d){
   document.title = d.empresa.nome+' · Evolução Financeira';
   $('ver').innerHTML = d.versoes.map((v,i)=>`<option value="${esc(v.id)}">${i===0?'Atual · ':''}${esc(diaBR(v.enviadoEm))} (até ${MESES[(v.ultimo||1)-1]})</option>`).join('');
   if(!d.relatorio){
-    $('eMeta').textContent=d.empresa.cnpj||''; cs.model=null; charts.forEach(c=>c.destroy()); charts=[]; REPORT_EL.innerHTML='';
+    $('eMeta').textContent=d.empresa.cnpj||''; cs.model=null; limparGraficos(); REPORT_EL.innerHTML='';
     setEmpty('O painel financeiro ainda não foi publicado','Assim que o seu consultor enviar a primeira planilha, ela aparece aqui.');
     if(cs.contas || cs.contratos || cs.repasses){ $('tbar').hidden=false; $('tbar').classList.add('so-cal'); anexarRepasses(cs.repasses); anexarContratos(cs.contratos); desenharCalendario(); } else { $('tbar').hidden=true; sairTv(); }
     return;

@@ -973,3 +973,20 @@ body.tv #report .page.tv-cur{background:linear-gradient(rgba(251,250,255,.96),rg
 /* celular/tablet: 2 indicadores por linha (a regra da barra lateral não vale aqui) */
 @media (max-width:900px){ body.has-side:not(.side-off):not(.tv) .g6, body.has-side.side-off:not(.tv) .g6{grid-template-columns:repeat(2,1fr)} }
 @media (max-width:600px){ .g6 .kpi .v,.g6 .kpi.big .v,.kpi.big .v{font-size:16px;letter-spacing:-.03em} .kpi{padding:12px 12px 11px} }
+
+/* ---------- desempenho do Liquid Glass ----------
+   O fundo é um degradê suave e fixo: desfocar o que está atrás de cartões e páginas quase não muda o visual,
+   mas custa caro a cada quadro de rolagem. O desfoque de verdade fica só onde o conteúdo passa por trás:
+   barra do topo, barra de filtros, janelas e avisos (e a barra lateral quando abre por cima, no celular). */
+body::before{transform:translateZ(0);will-change:transform}
+.side,.status,.login,.ecard,.hist,.contasbox,.ctrbox,.sharebox,.empty,.okpi,.opend,.obem,.sbcli,.page,.btn,.drop,.addcard,.repdrop{
+  -webkit-backdrop-filter:none;backdrop-filter:none}
+:root{
+  --lg-bg: linear-gradient(135deg, rgba(255,255,255,.66) 0%, rgba(255,255,255,.36) 100%);
+}
+.side{background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.36))}
+.btn{background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(255,255,255,.68))}
+@media (max-width:900px){ body.has-side .side{-webkit-backdrop-filter:var(--lg-blur);backdrop-filter:var(--lg-blur)} }
+/* páginas fora da tela não são desenhadas até chegarem perto (rolagem mais leve) */
+/* (content-visibility testado e removido: atrapalhava os saltos da barra lateral; o ganho na rolagem era pequeno) */
+@media print{ #report .page{content-visibility:visible!important} }

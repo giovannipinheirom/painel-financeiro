@@ -243,6 +243,26 @@ const FIN_COLORS = ['#902884','#B5487A','#D9661F','#E0A100','#3D7FD1','#2E9E5B',
    4. MONTAGEM DO RELATÓRIO
    ===================================================================== */
 let charts=[];
+// Gráficos sob demanda: cada um é criado só quando a página dele chega perto da tela.
+// (Antes os ~20 gráficos eram criados de uma vez a cada troca de mês/visão.)
+const GRAF_PEND = new Map(); let GRAF_IO = null;
+function criarGrafico(cv){ const cfg=GRAF_PEND.get(cv); if(!cfg) return; GRAF_PEND.delete(cv); if(GRAF_IO) GRAF_IO.unobserve(cv); charts.push(new Chart(cv, cfg)); }
+function criarTodosGraficos(){ [...GRAF_PEND.keys()].forEach(criarGrafico); }
+function agendarGrafico(cv, cfg){
+  if(!cv) return;
+  if(typeof IntersectionObserver==='undefined'){ charts.push(new Chart(cv, cfg)); return; }
+  if(!GRAF_IO) GRAF_IO = new IntersectionObserver(ents=>ents.forEach(e=>{ if(e.isIntersecting) criarGrafico(e.target); }), { rootMargin:'500px 0px' });
+  GRAF_PEND.set(cv, cfg); GRAF_IO.observe(cv);
+}
+function limparGraficos(){ charts.forEach(c=>c.destroy()); charts=[]; GRAF_PEND.clear(); if(GRAF_IO) GRAF_IO.disconnect(); }
+// PDF/impressão: cria os que faltam e desenha tudo em alta resolução; depois volta ao normal
+if(typeof window!=='undefined'){
+  window.addEventListener('beforeprint', ()=>{ document.body.classList.add('imprimindo'); void document.body.offsetHeight;
+    if(typeof Chart==='undefined') return; criarTodosGraficos();
+    Object.values(Chart.instances).forEach(c=>{ c.options.devicePixelRatio=2; c.resize(); }); });
+  window.addEventListener('afterprint', ()=>{ document.body.classList.remove('imprimindo'); if(typeof Chart==='undefined') return;
+    Object.values(Chart.instances).forEach(c=>{ c.options.devicePixelRatio=window.devicePixelRatio||1; c.resize(); }); });
+}
 function header(title, sub){
   return `<header class="ph"><div class="logo"><img class="rico" src="/img/icone.png" alt=""><div class="ttl"><h1>${title}</h1><p><b class="cli">${esc(EMP_NOME)}</b> · ${sub}</p></div></div>
   <div class="brand"><img class="rmarca" src="/img/marca.png" alt="inova com valor"><span>Evolução Financeira</span></div></header>`;
@@ -250,7 +270,7 @@ function header(title, sub){
 const footer = (p,n,txt) => `<footer class="pf"><span>${txt}</span><span>${p} / ${n}</span></footer>`;
 
 function render(model, mode, m){
-  charts.forEach(c=>c.destroy()); charts=[];
+  limparGraficos();
   const P = periodo(model, mode, m);
   const S = a => sumIdx(a, P.idx), SP = a => P.prev? sumIdx(a,P.prev) : null;
   const nMeses = P.idx.length;
@@ -467,7 +487,7 @@ function render(model, mode, m){
 
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
   Chart.defaults.font.size = 10.5; Chart.defaults.color = '#86868b';
-  Chart.defaults.animation = false; Chart.defaults.devicePixelRatio = Math.max(2, window.devicePixelRatio||1); Chart.defaults.maintainAspectRatio = false;
+  Chart.defaults.animation = false; Chart.defaults.devicePixelRatio = window.devicePixelRatio||1; Chart.defaults.maintainAspectRatio = false;
   Chart.defaults.plugins.legend.position = 'bottom';
   Object.assign(Chart.defaults.plugins.legend.labels,{boxWidth:10,boxHeight:10,padding:12});
   Chart.defaults.elements.bar.borderRadius = 4; Chart.defaults.elements.line.borderWidth = 2.5; Chart.defaults.elements.point.radius = 3;
@@ -475,7 +495,7 @@ function render(model, mode, m){
 
   const yK = (extra={}) => ({ grid:{color:c=>c.tick&&c.tick.value===0?'#9AA3AF':'#EEF1F5'}, border:{display:false}, ticks:{callback:v=>kfmt(v)}, ...extra });
   const xC = { grid:{display:false}, border:{color:'#D5DBE3'} };
-  const mk = (id,cfg) => charts.push(new Chart(document.getElementById(id), cfg));
+  const mk = (id,cfg) => agendarGrafico(document.getElementById(id), cfg);
   const line = (label,data,color,extra={}) => ({type:'line',label,data,borderColor:color,backgroundColor:color,pointBackgroundColor:'#fff',pointBorderWidth:2,tension:.25,...extra});
   const bar  = (label,data,color,extra={}) => ({type:'bar',label,data,backgroundColor:color,...extra});
   const fade = (color) => data => data.map((_,i)=> i===curIdx || mode==='anual' ? color : color+'99');
@@ -584,7 +604,16 @@ const dataBR = iso => { if(!iso) return ''; const d=new Date(iso); return d.toLo
 const diaBR = iso => iso? new Date(iso).toLocaleDateString('pt-BR') : '';
 let _toastT; function toast(msg){ const t=$('toast'); if(!t) return; t.textContent=msg; t.classList.add('show'); clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.remove('show'),3200); }
 function setEmpty(t, s){ const el=$('empty'); if(t==null){ el.hidden=true; return; } el.hidden=false; el.innerHTML=''; const b=document.createElement('b'); b.textContent=t; el.append(b, document.createTextNode(s||'')); }
-function libsOk(){ return typeof XLSX!=='undefined' && typeof Chart!=='undefined'; }
+function libsOk(){ return typeof Chart!=='undefined'; }
+// o leitor de planilhas (~900 KB) só é baixado quando alguém vai importar uma planilha
+let XLSX_P = null;
+function carregarXLSX(){
+  if(typeof XLSX!=='undefined') return Promise.resolve();
+  return XLSX_P || (XLSX_P = new Promise((ok, erro)=>{
+    const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.async=true;
+    s.onload=()=>ok(); s.onerror=()=>{ XLSX_P=null; s.remove(); erro(new Error('Não consegui carregar o leitor de planilhas. Confira a internet e tente de novo.')); };
+    document.head.append(s); }));
+}
 
 
 /* =====================================================================
