@@ -88,7 +88,22 @@ function parseBase(g){
       cart[String(row[0]).trim()]=[num(row[iR])||0, num(row[iA])||0, num(row[iV])||0];
     }
   }
-  return {series, scalar, cart};
+  // nomes reais dos bancos (opcional): bloco "Mapeamento bancos" com  linha do painel | banco de verdade
+  const bancos={};
+  for(let r=0;r<g.length;r++){ const row=g[r]||[]; const c=row.findIndex(v=>norm(v).startsWith('mapeamento bancos'));
+    if(c<0) continue;
+    for(let k=r+1;k<g.length;k++){ const rr=g[k]||[]; const chave=norm(rr[c]); if(!chave) break;
+      const slot = chave==='bb conta'?'bb' : chave.startsWith('rende facil')?'rende' : chave==='sicredi conta'?'sic' : chave.startsWith('aplicacao sicredi')?'aplSic' : chave==='stone'?'stone' : chave==='cora'?'cora' : null;
+      if(slot) bancos[slot]=nomeBanco(rr[c+1]); }
+    break;
+  }
+  return {series, scalar, cart, bancos};
+}
+// "Itaú – conta corrente (sem saldo)" -> "Itaú"; "não usado" -> null
+function nomeBanco(v){
+  const t=String(v??'').trim(), n=norm(t);
+  if(!t || /\bnao (usad|tem|utiliz)/.test(n)) return null;
+  return t.split(/\s+[–—-]\s+|\s*\(/)[0].trim() || null;
 }
 
 function anoDaPlanilha(wb){
@@ -131,7 +146,7 @@ function buildModel(wb){
     saidas, saidasCats: [...saidasCats, dre.by('distribuicao de dividendos')].filter(Boolean), finKids,
     contas:{ bb:sN('bb conta'), stone:sN('stone'), sic:sN('sicredi conta'), cora:sN('cora'), rende:sN('rende facil bb'), aplSic:sN('aplicacao sicredi') },
     apl:{ aplic:s('aplicacoes totais'), resg:s('resgates totais'), rendBB:s('bb rendimento'), rendSic:s('sicredi rendimento'), imp:s('impostos totais') },
-    cart: base.cart,
+    cart: base.cart, bancos: base.bancos,
   };
 }
 
@@ -202,7 +217,19 @@ function render(model, mode, m){
   const ehInvest = r => /consorcio|financiamento/.test(r.key);
   const invRows = model.finKids.filter(ehInvest);
   const invTem = invRows.some(r=>r.vals.slice(0,m).some(v=>Math.abs(v)>0.5));
-  const NP = 6 + (REPORT_OPTS.posicao ? 1 : 0) + (invTem ? 1 : 0) + (REPORT_OPTS.extra||0);
+  // o que esta planilha tem de fato (contas vazias, carteira vazia etc. ficam de fora)
+  const tem = arr => Array.isArray(arr) && arr.some(v=>v!=null && Math.abs(v)>0.005);
+  const nb = model.bancos||{}, mapeado = Object.keys(nb).length>0;
+  const N1 = nb.bb || nb.rende || 'BB', N2 = nb.sic || nb.aplSic || 'Sicredi', NS = nb.stone || 'Stone', NC = nb.cora || 'Cora';
+  const A1 = mapeado ? 'aplicação' : 'Rende Fácil';
+  const tG1 = tem(ct.bb)||tem(ct.rende), tG2 = tem(ct.sic)||tem(ct.aplSic);
+  const temContas = ['bb','rende','sic','aplSic','stone','cora'].some(k=>tem(ct[k]));
+  const ap0 = model.apl||{};
+  const temApl = ['aplic','resg','rendBB','rendSic','imp'].some(k=>tem(ap0[k])) || tem(ct.rende) || tem(ct.aplSic);
+  const cartNames0 = Object.keys(model.cart||{});
+  const temCart = cartNames0.some(b=>model.cart[b].some(v=>Math.abs(v)>0.005));
+  const temPos = REPORT_OPTS.posicao && temCart;
+  const NP = 4 + (temContas ? 1 : 0) + (temApl ? 1 : 0) + (temPos ? 1 : 0) + (invTem ? 1 : 0) + (REPORT_OPTS.extra||0);
   let PG = 0;
 
   /* ---------- página 1 ---------- */
@@ -222,10 +249,11 @@ function render(model, mode, m){
       : ['Despesas financeiras', brl(fin), dlt(fin, P.prev? -SP(model.fin):null, false), C.roxo],
   ];
   const bancos = [
-    ['BB · conta', ct.bb, C.bb], ['BB · Rende Fácil', ct.rende, C.bb],
-    ['Sicredi · conta', ct.sic, C.sic], ['Sicredi · aplicação', ct.aplSic, C.sic],
-    ['Stone', ct.stone, C.stone], ['Cora', ct.cora, C.cora],
-  ];
+    [`${N1} · conta`, ct.bb, C.bb], [`${N1} · ${A1}`, ct.rende, C.bb],
+    [`${N2} · conta`, ct.sic, C.sic], [`${N2} · aplicação`, ct.aplSic, C.sic],
+    [NS, ct.stone, C.stone], [NC, ct.cora, C.cora],
+  ].filter(b=>tem(b[1]));
+  const gB = n => n>=5 ? 'g6' : n===4 ? 'g4' : 'g3';
   const vsSaldo = P.vs || P.vsSaldo;
   const cartNames = Object.keys(model.cart);
   const cartTot = b => model.cart[b].reduce((a,x)=>a+x,0);
@@ -252,17 +280,17 @@ function render(model, mode, m){
     const kids=model.finKids.map(k=>[k.label,-S(k.vals)]).sort((a,b)=>b[1]-a[1]);
     notes.push([C.roxo, `<b>Despesas financeiras de ${curto(fin)}</b> (${pct(rb?fin/rb:0)} da receita). Maiores itens: ${kids.slice(0,2).map(([l,v])=>`${l.toLowerCase()} (${curto(v)})`).join(' e ')}.`]);
   }
-  notes.push([C.navy, `<b>Saldo total de ${curto(sT)}</b>${sTp!=null?` (${sig(sT-sTp)} vs ${vsSaldo})`:''}, ${pct(saldoTotal(P.end)? (bal(ct.rende,P.end)+bal(ct.aplSic,P.end))/sT : 0)} aplicado. Carteira com <b>${pct(colT(0)/cartAll)} recebido</b>${colT(1)?`; ${curto(colT(1))} em aberto`:''}${colT(2)?` e ${curto(colT(2))} vencidos`:''}.`]);
+  notes.push([C.navy, `<b>Saldo total de ${curto(sT)}</b>${sTp!=null?` (${sig(sT-sTp)} vs ${vsSaldo})`:''}, ${pct(saldoTotal(P.end)? (bal(ct.rende,P.end)+bal(ct.aplSic,P.end))/sT : 0)} aplicado.${temCart ? ` Carteira com <b>${pct(colT(0)/cartAll)} recebido</b>${colT(1)?`; ${curto(colT(1))} em aberto`:''}${colT(2)?` e ${curto(colT(2))} vencidos`:''}.` : ''}`]);
 
   let html = `<section class="page">
     ${header(`Evolução Financeira — ${P.titulo}`, `${model.ate?`Lançamentos até ${model.ate} · `:''}${mode==='mensal'?'comparativos contra o mês anterior':mode==='trimestral'?'comparativos contra o trimestre anterior':'valores acumulados no ano'}`)}
     <div><div class="sec">${P.secao} <span>· ${P.secaoSub}</span></div>
       <div class="grid g6">${kRes.map(([l,v,d,c])=>`<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d||'&nbsp;'}</div></div>`).join('')}</div></div>
-    <div><div class="sec">Conta corrente e aplicações <span>· saldo em fim de ${MESES[P.end].toLowerCase()} · total ${brl(sT)}</span></div>
-      <div class="grid g6">${bancos.map(([l,arr,c])=>{ const v=bal(arr,P.end), p=bal(arr,P.prevEnd); const d=p==null?null:v-p;
-        return `<div class="kpi" style="--c:${c}"><div class="l">${l}</div><div class="v">${brl(v)}</div><div class="d">${d==null?'&nbsp;':Math.round(d)===0?'<span style="color:#9AA3AF">= sem variação</span>':delta(d,vsSaldo)}</div><div class="bar"><i style="width:${Math.max(sT?v/sT*100:0,0.6)}%"></i></div></div>`;}).join('')}</div></div>
-    <div><div class="sec">Carteira de clientes <span>· acumulado do ano</span></div>
-      <div class="grid g3">${kC.map(([l,v,c])=>{const p=v/cartAll; return `<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${brl(v)}</div><div class="d">${pct(p, p>0&&p<0.01?2:1)} da carteira total</div><div class="bar"><i style="width:${Math.max(p*100,0.8)}%"></i></div></div>`;}).join('')}</div></div>
+    ${!bancos.length ? '' : `<div><div class="sec">Conta corrente e aplicações <span>· saldo em fim de ${MESES[P.end].toLowerCase()} · total ${brl(sT)}</span></div>
+      <div class="grid ${gB(bancos.length)}">${bancos.map(([l,arr,c])=>{ const v=bal(arr,P.end), p=bal(arr,P.prevEnd); const d=p==null?null:v-p;
+        return `<div class="kpi" style="--c:${c}"><div class="l">${l}</div><div class="v">${brl(v)}</div><div class="d">${d==null?'&nbsp;':Math.round(d)===0?'<span style="color:#9AA3AF">= sem variação</span>':delta(d,vsSaldo)}</div><div class="bar"><i style="width:${Math.max(sT?v/sT*100:0,0.6)}%"></i></div></div>`;}).join('')}</div></div>`}
+    ${!temCart ? '' : `<div><div class="sec">Carteira de clientes <span>· acumulado do ano</span></div>
+      <div class="grid g3">${kC.map(([l,v,c])=>{const p=v/cartAll; return `<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${brl(v)}</div><div class="d">${pct(p, p>0&&p<0.01?2:1)} da carteira total</div><div class="bar"><i style="width:${Math.max(p*100,0.8)}%"></i></div></div>`;}).join('')}</div></div>`}
     <div><div class="sec">Destaques</div><div class="hl">${notes.slice(0,4).map(([c,t])=>`<div class="note" style="--c:${c}">${t}</div>`).join('')}</div></div>
     ${footer(++PG,NP,footTxt)}
   </section>`;
@@ -326,25 +354,26 @@ function render(model, mode, m){
     ${footer(++PG,NP,footTxt)}</section>`;
 
   /* ---------- página 4 ---------- */
-  html += `<section class="page">${header('Carteira, saídas e despesas financeiras', `Saídas e despesas financeiras: ${P.secaoSub} · carteira: acumulado do ano`)}
-    <div class="grid g2b fill">
-      <div class="card"><h3>Títulos por banco</h3><div class="sub">Participação no total de títulos do ano</div><div class="cv"><canvas id="c_tit"></canvas></div></div>
+  html += `<section class="page">${header(temCart ? 'Carteira, saídas e despesas financeiras' : 'Saídas e despesas financeiras', temCart ? `Saídas e despesas financeiras: ${P.secaoSub} · carteira: acumulado do ano` : `${P.secaoSub} · para onde foi o dinheiro`)}
+    <div class="grid ${temCart?'g2b':'g2'} fill">
+      ${temCart ? `<div class="card"><h3>Títulos por banco</h3><div class="sub">Participação no total de títulos do ano</div><div class="cv"><canvas id="c_tit"></canvas></div></div>` : ''}
       <div class="card"><h3>Saídas por categoria</h3><div class="sub">${P.secaoSub} (R$)</div><div class="cv"><canvas id="c_cat"></canvas></div></div>
-      <div class="card"><h3>Posição da carteira por banco</h3><div class="sub">% recebido, em aberto e vencido</div><div class="cv"><canvas id="c_pos"></canvas></div></div>
+      ${temCart ? `<div class="card"><h3>Posição da carteira por banco</h3><div class="sub">% recebido, em aberto e vencido</div><div class="cv"><canvas id="c_pos"></canvas></div></div>` : ''}
       <div class="card"><h3>Despesas financeiras por tipo</h3><div class="sub">${P.secaoSub} · total ${brl(fin)}</div><div class="cv"><canvas id="c_fin"></canvas></div></div>
     </div>${footer(++PG,NP,footTxt)}</section>`;
 
   /* ---------- página 5 ---------- */
-  html += `<section class="page">${header('Caixa por banco', `Saldos no fim de cada ${mode==='trimestral'?'trimestre':'mês'} em conta corrente e aplicações`)}
+  const temCC = ['bb','sic','stone','cora'].some(k=>tem(ct[k]));
+  if(temContas) html += `<section class="page">${header('Caixa por banco', `Saldos no fim de cada ${mode==='trimestral'?'trimestre':'mês'} em conta corrente e aplicações`)}
     <div class="grid g2 fill">
-      <div class="card"><h3>BB — caixa (conta + Rende Fácil)</h3><div class="sub">R$</div><div class="cv"><canvas id="c_bb"></canvas></div></div>
-      <div class="card"><h3>Sicredi — caixa (conta + aplicação)</h3><div class="sub">R$</div><div class="cv"><canvas id="c_sic"></canvas></div></div>
-      <div class="card"><h3>BB × Sicredi — caixa total</h3><div class="sub">R$</div><div class="cv"><canvas id="c_bbsic"></canvas></div></div>
-      <div class="card"><h3>Saldo em conta corrente por banco</h3><div class="sub">R$ (sem aplicações)</div><div class="cv"><canvas id="c_contas"></canvas></div></div>
+      ${tG1 ? `<div class="card"><h3>${esc(N1)} — ${tem(ct.bb)&&tem(ct.rende) ? `caixa (conta + ${A1})` : tem(ct.rende) ? A1 : 'conta corrente'}</h3><div class="sub">R$</div><div class="cv"><canvas id="c_bb"></canvas></div></div>` : ''}
+      ${tG2 ? `<div class="card"><h3>${esc(N2)} — ${tem(ct.sic)&&tem(ct.aplSic) ? 'caixa (conta + aplicação)' : tem(ct.aplSic) ? 'aplicação' : 'conta corrente'}</h3><div class="sub">R$</div><div class="cv"><canvas id="c_sic"></canvas></div></div>` : ''}
+      ${tG1 && tG2 ? `<div class="card"><h3>${esc(N1)} × ${esc(N2)} — caixa total</h3><div class="sub">R$</div><div class="cv"><canvas id="c_bbsic"></canvas></div></div>` : ''}
+      ${temCC ? `<div class="card"><h3>Saldo em conta corrente por banco</h3><div class="sub">R$ (sem aplicações)</div><div class="cv"><canvas id="c_contas"></canvas></div></div>` : ''}
     </div>${footer(++PG,NP,footTxt)}</section>`;
 
   /* ---------- página 6 ---------- */
-  html += `<section class="page">${header('Aplicações financeiras', `Movimentação, rendimentos e saldos aplicados ${unidade}`)}
+  if(temApl) html += `<section class="page">${header('Aplicações financeiras', `Movimentação, rendimentos e saldos aplicados ${unidade}`)}
     <div class="grid g2 fill">
       <div class="card"><h3>Aplicações × Resgates</h3><div class="sub">Movimentação ${unidade} (R$)</div><div class="cv"><canvas id="c_apres"></canvas></div></div>
       <div class="card"><h3>Rendimento × Impostos</h3><div class="sub">R$ ${unidade} · IR + IOF</div><div class="cv"><canvas id="c_rend"></canvas></div></div>
@@ -354,7 +383,7 @@ function render(model, mode, m){
 
   /* ---------- página 7: posição de clientes (opcional por empresa) ---------- */
   const bancosPos = ['BB','Cora','Stone','Sicredi'].filter(b=>model.cart[b]).concat(cartNames.filter(b=>!['BB','Cora','Stone','Sicredi'].includes(b)));
-  if(REPORT_OPTS.posicao){
+  if(temPos){
     const pr = bancosPos.map(b=>{ const [rec,ab,ve]=model.cart[b]; return {b, rec, ab, ve, ar:ab+ve}; });
     const tAb=pr.reduce((a,x)=>a+x.ab,0), tVe=pr.reduce((a,x)=>a+x.ve,0), tRec=pr.reduce((a,x)=>a+x.rec,0), tAr=tAb+tVe;
     const maior = pr.slice().sort((a,b)=>b.ar-a.ar)[0];
@@ -422,13 +451,15 @@ function render(model, mode, m){
 
   const cn = ['BB','Cora','Stone','Sicredi'].filter(b=>model.cart[b]).concat(cartNames.filter(b=>!['BB','Cora','Stone','Sicredi'].includes(b)));
   const cartMi = cartAll/1e6;
+  if(temCart){
   mk('c_tit',{type:'doughnut',data:{labels:cn,datasets:[{data:cn.map(b=>+(cartTot(b)/cartAll*100).toFixed(1)),backgroundColor:cn.map(bankColor),borderColor:'#fff',borderWidth:2}]},
     options:{cutout:'62%',plugins:{legend:{position:'right',labels:{generateLabels:ch=>cn.map((b,i)=>({text:`${b}  ${pct(cartTot(b)/cartAll)}`,fillStyle:bankColor(b),strokeStyle:bankColor(b),index:i}))}},tooltip:{enabled:false}}},
     plugins:[{id:'lbl',afterDatasetDraw(ch){const {ctx}=ch;const meta=ch.getDatasetMeta(0);ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
       meta.data.forEach((a,i)=>{const v=ch.data.datasets[0].data[i];if(v<5)return;const p=a.tooltipPosition();ctx.font='600 11px '+Chart.defaults.font.family;ctx.fillStyle='#fff';ctx.fillText(Math.round(v)+'%',p.x,p.y);});
-      const c=meta.data[0];ctx.fillStyle='#1B2433';ctx.font='700 15px '+Chart.defaults.font.family;ctx.fillText(curto(cartAll),c.x,c.y-6);ctx.font='500 9.5px '+Chart.defaults.font.family;ctx.fillStyle='#6B7686';ctx.fillText('em títulos no ano',c.x,c.y+10);ctx.restore();}}]});
+      const c=meta.data[0];if(!c){ctx.restore();return;}ctx.fillStyle='#1B2433';ctx.font='700 15px '+Chart.defaults.font.family;ctx.fillText(curto(cartAll),c.x,c.y-6);ctx.font='500 9.5px '+Chart.defaults.font.family;ctx.fillStyle='#6B7686';ctx.fillText('em títulos no ano',c.x,c.y+10);ctx.restore();}}]});
   mk('c_pos',{type:'bar',data:{labels:cn,datasets:[['Recebido',C.recebido],['Em aberto',C.aberto],['Vencido',C.vencido]].map(([n,c],j)=>bar(n,cn.map(b=>model.cart[b][j]/(cartTot(b)||1)*100),c,{stack:'p'}))},
     options:{indexAxis:'y',elements:{bar:{borderRadius:0}},datasets:{bar:{maxBarThickness:20}},scales:{x:{stacked:true,max:100,grid:{color:'#EEF1F5'},border:{display:false},ticks:{callback:v=>v+'%'}},y:{stacked:true,grid:{display:false}}}}});
+  }
 
   const hbar = (id, items, color) => {
     const tot = items.reduce((a,x)=>a+Math.max(x[1],0),0)||1;
@@ -454,20 +485,23 @@ function render(model, mode, m){
     hbar('c_invtipo', invRows.map(r=>[r.label, -S(r.vals)]).filter(x=>Math.abs(x[1])>0.5).sort((a,b)=>b[1]-a[1]), C.roxo);
   }
 
-  mk('c_bb',{data:{labels:L,datasets:[line('Total BB',rende.map((v,i)=>v+endOf(ct.bb)[i]),'#7A6500',{order:0}),bar('Rende Fácil',rende,C.bb,{stack:'b',order:1}),bar('Conta BB',endOf(ct.bb),'#F3DD6B',{stack:'b',order:1})]},options:{scales:{x:{...xC,stacked:true},y:yK({stacked:true,beginAtZero:true})}}});
-  mk('c_sic',{data:{labels:L,datasets:[line('Total Sicredi',aplSic.map((v,i)=>v+endOf(ct.sic)[i]),'#1D4D20',{order:0}),bar('Aplicação',aplSic,C.sic,{stack:'b',order:1}),bar('Conta Sicredi',endOf(ct.sic),C.sicL,{stack:'b',order:1})]},options:{scales:{x:{...xC,stacked:true},y:yK({stacked:true,beginAtZero:true})}}});
-  mk('c_bbsic',{type:'line',data:{labels:L,datasets:[line('BB',rende.map((v,i)=>v+endOf(ct.bb)[i]),C.bb),line('Sicredi',aplSic.map((v,i)=>v+endOf(ct.sic)[i]),C.sic)]},options:{scales:{x:xC,y:yK({beginAtZero:true})}}});
-  mk('c_contas',{type:'line',data:{labels:L,datasets:[line('BB',endOf(ct.bb),C.bb),line('Sicredi',endOf(ct.sic),C.sic),line('Stone',endOf(ct.stone),C.stone),line('Cora',endOf(ct.cora),C.cora)]},
+  const so = ds => ds.filter(d=>d.data.some(v=>v!=null && Math.abs(v)>0.005));
+  const mkSe = (id,cfg) => { if(document.getElementById(id)) mk(id,cfg); };
+  const cBB=endOf(ct.bb), cSic=endOf(ct.sic);
+  mkSe('c_bb',{data:{labels:L,datasets:[line('Total '+N1,rende.map((v,i)=>v+cBB[i]),'#7A6500',{order:0}),...so([bar(mapeado?N1+' · aplicação':'Rende Fácil',rende,C.bb,{stack:'b',order:1}),bar('Conta '+N1,cBB,'#F3DD6B',{stack:'b',order:1})])]},options:{scales:{x:{...xC,stacked:true},y:yK({stacked:true,beginAtZero:true})}}});
+  mkSe('c_sic',{data:{labels:L,datasets:[line('Total '+N2,aplSic.map((v,i)=>v+cSic[i]),'#1D4D20',{order:0}),...so([bar('Aplicação',aplSic,C.sic,{stack:'b',order:1}),bar('Conta '+N2,cSic,C.sicL,{stack:'b',order:1})])]},options:{scales:{x:{...xC,stacked:true},y:yK({stacked:true,beginAtZero:true})}}});
+  mkSe('c_bbsic',{type:'line',data:{labels:L,datasets:[line(N1,rende.map((v,i)=>v+cBB[i]),C.bb),line(N2,aplSic.map((v,i)=>v+cSic[i]),C.sic)]},options:{scales:{x:xC,y:yK({beginAtZero:true})}}});
+  mkSe('c_contas',{type:'line',data:{labels:L,datasets:so([line(N1,cBB,C.bb),line(N2,cSic,C.sic),line(NS,endOf(ct.stone),C.stone),line(NC,endOf(ct.cora),C.cora)])},
     options:{scales:{x:xC,y:yK({ticks:{callback:v=>(v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+'k'}})}}});
 
   const ap=model.apl, rendBB=agg(ap.rendBB), rendSic=agg(ap.rendSic), rendBr=rendBB.map((v,i)=>v+rendSic[i]), imp=agg(ap.imp);
-  mk('c_apres',{type:'bar',data:{labels:L,datasets:[bar('Aplicações',agg(ap.aplic),C.fat),bar('Resgates',agg(ap.resg),C.sai)]},options:{scales:{x:xC,y:yK({beginAtZero:true})}}});
+  mkSe('c_apres',{type:'bar',data:{labels:L,datasets:[bar('Aplicações',agg(ap.aplic),C.fat),bar('Resgates',agg(ap.resg),C.sai)]},options:{scales:{x:xC,y:yK({beginAtZero:true})}}});
   const plain = {grid:{color:'#EEF1F5'},border:{display:false},beginAtZero:true,ticks:{callback:v=>v.toLocaleString('pt-BR')}};
-  mk('c_rend',{data:{labels:L,datasets:[line('Rendimento líquido',rendBr.map((v,i)=>v-imp[i]),C.gold,{order:0}),bar('Rendimento bruto',rendBr,C.rec,{order:1}),bar('Impostos (IR + IOF)',imp,C.neg,{order:1})]},options:{scales:{x:xC,y:plain}}});
-  mk('c_rendbk',{type:'bar',data:{labels:L,datasets:[bar('Sicredi',rendSic,C.sic,{stack:'r'}),bar('BB',rendBB,C.bb,{stack:'r'})]},options:{scales:{x:{...xC,stacked:true},y:{...plain,stacked:true}}}});
-  mk('c_apl',{type:'line',data:{labels:L,datasets:[line('Total aplicado',aplicado,C.navy,{borderWidth:3}),line('Aplicação Sicredi',aplSic,C.sic),line('Rende Fácil BB',rende,C.bb)]},options:{scales:{x:xC,y:yK({beginAtZero:true})}}});
+  mkSe('c_rend',{data:{labels:L,datasets:[line('Rendimento líquido',rendBr.map((v,i)=>v-imp[i]),C.gold,{order:0}),bar('Rendimento bruto',rendBr,C.rec,{order:1}),bar('Impostos (IR + IOF)',imp,C.neg,{order:1})]},options:{scales:{x:xC,y:plain}}});
+  mkSe('c_rendbk',{type:'bar',data:{labels:L,datasets:so([bar(N2,rendSic,C.sic,{stack:'r'}),bar(N1,rendBB,C.bb,{stack:'r'})])},options:{scales:{x:{...xC,stacked:true},y:{...plain,stacked:true}}}});
+  mkSe('c_apl',{type:'line',data:{labels:L,datasets:[line('Total aplicado',aplicado,C.navy,{borderWidth:3}),...so([line(mapeado?N2+' · aplicação':'Aplicação Sicredi',aplSic,C.sic),line(mapeado?N1+' · aplicação':'Rende Fácil BB',rende,C.bb)])]},options:{scales:{x:xC,y:yK({beginAtZero:true})}}});
 
-  if(REPORT_OPTS.posicao && document.getElementById('c_receber')){
+  if(temPos && document.getElementById('c_receber')){
     const ab = bancosPos.map(b=>model.cart[b][1]), ve = bancosPos.map(b=>model.cart[b][2]);
     mk('c_receber',{type:'bar',data:{labels:bancosPos,datasets:[bar('Em aberto (a vencer)',ab,C.aberto,{stack:'r'}),bar('Vencido',ve,C.vencido,{stack:'r'})]},
       options:{indexAxis:'y',layout:{padding:{right:86}},elements:{bar:{borderRadius:0}},datasets:{bar:{maxBarThickness:34}},
@@ -488,7 +522,7 @@ function serializeModel(m){
   const rows=m.dre.rows;
   return { v:1, rows: rows.map(r=>({key:r.key,label:r.label,type:r.type,vals:r.vals,p:r.parent?rows.indexOf(r.parent):-1})),
     ano:m.ano, ate:m.ate, ultimo:m.ultimo, sel:m.sel, fat:m.fat, rb:m.rb, rl:m.rl, fin:m.fin, saidas:m.saidas,
-    saidasCats:m.saidasCats.map(r=>rows.indexOf(r)), finKids:m.finKids.map(r=>rows.indexOf(r)), contas:m.contas, apl:m.apl, cart:m.cart };
+    saidasCats:m.saidasCats.map(r=>rows.indexOf(r)), finKids:m.finKids.map(r=>rows.indexOf(r)), contas:m.contas, apl:m.apl, cart:m.cart, bancos:m.bancos||{} };
 }
 function hydrateModel(s){
   const rows=s.rows.map(r=>({key:r.key,label:r.label,type:r.type,vals:r.vals,parent:null}));

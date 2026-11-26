@@ -59,9 +59,22 @@ Sicredi Rendimento           ← rendimento bruto do mês
 Impostos Totais              ← IR + IOF sobre aplicações no mês
 ```
 
-Se a empresa usa OUTROS bancos (Itaú, Bradesco, Inter, Santander etc.): o painel por enquanto só tem esses quatro nomes de conta. Coloque o banco principal da empresa na linha "BB Conta"/"Rende Fácil BB"/"BB Rendimento" e o segundo banco nas linhas "Sicredi…", e os demais em "Stone" e "Cora". Depois me diga, em uma lista, qual banco real ficou em cada linha.
+Se a empresa usa OUTROS bancos (Itaú, Bradesco, Inter, Santander, PayPal etc.): use as mesmas linhas acima como "vagas" (banco principal nas linhas "BB…", segundo banco nas linhas "Sicredi…", os demais em "Stone" e "Cora") e diga ao painel o nome real com um bloco "Mapeamento bancos" na própria aba "Base Dash", em duas colunas livres à direita (ex.: O e P):
 
-### Bloco "Carteira de clientes" (opcional, para a página "Posição de clientes")
+```
+O                                         | P
+Mapeamento bancos                          |
+BB Conta                                   | Itaú – conta corrente
+Rende Fácil BB / BB Rendimento             | Itaú – aplicação automática
+Sicredi Conta                              | Inter – conta corrente
+Aplicação Sicredi / Sicredi Rendimento     | não usado
+Stone                                      | PayPal
+Cora                                       | não usado
+```
+- O painel usa o texto antes do "–" como nome do banco (ex.: "Itaú"). Escreva "não usado" nas vagas que sobrarem.
+- Linhas sem nenhum valor no ano não aparecem no painel, então não precisa preencher com zero.
+
+### Bloco "Carteira de clientes" (opcional, para a página "Posição de clientes"; sem ele, a página e a seção de carteira simplesmente não aparecem)
 Mais abaixo na mesma aba "Base Dash", depois de uma linha em branco:
 
 ```
