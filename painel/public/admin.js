@@ -304,10 +304,11 @@ function resumoContas(){
 function desenharContas(){
   const tb=$('cLista'); tb.innerHTML=''; ordenarContas();
   const hoje=hojeISO(); resumoContas();
-  if(!st.contas.length) tb.innerHTML='<tr><td colspan="4" style="color:var(--muted);padding:14px 8px">Cadastre a primeira conta na linha acima ou use "Colar do Excel".</td></tr>';
+  if(!st.contas.length) tb.innerHTML='<tr><td colspan="5" style="color:var(--muted);padding:14px 8px">Cadastre a primeira conta na linha acima ou use "Colar do Excel".</td></tr>';
   for(const c of st.contas){
     const tr=document.createElement('tr'); tr.className = c.vencimento<hoje ? 'pass' : '';
-    tr.innerHTML = `<td><input maxlength="120"></td><td class="cv2"><input inputmode="decimal"></td><td class="cd2"><input type="date"></td><td class="ca"><button class="x" title="Apagar conta" type="button">×</button></td>`;
+    tr.innerHTML = `<td><input maxlength="120"></td><td class="cv2"><input inputmode="decimal"></td><td class="cd2"><input type="date"></td><td class="cpdf"></td><td class="ca"><button class="x" title="Apagar conta" type="button">×</button></td>`;
+    celulaPdf(tr.querySelector('.cpdf'), c);
     const [iR,iV,iD] = tr.querySelectorAll('input');
     iR.value=c.recebedor; iV.value=brl2(c.valor); iD.value=c.vencimento;
     const salvar = async () => {
@@ -613,3 +614,31 @@ $('repPrazo').addEventListener('change', async () => {
     if(st.rep) st.rep.prazo = prazo; desenharRepasses(); desenharExtras(); toast(`Prazo de repasse: ${prazo} dias úteis`); }
   catch(e){ falha(e); }
 });
+
+
+/* ---------- PDF anexado à conta a pagar ---------- */
+let pdfConta = null;
+function celulaPdf(td, c){
+  td.innerHTML = c.anexo
+    ? `<span class="pdfok"><a href="${ANEXO_URL(c.id)}" target="_blank" rel="noopener" title="${esc(c.anexo)}">📎 Ver</a><button class="x" type="button" title="Remover o PDF">×</button></span>`
+    : `<button class="btn sm pdfadd" type="button">Anexar PDF</button>`;
+  const add = td.querySelector('.pdfadd');
+  if(add) add.onclick = () => { pdfConta = { c, td }; $('pdfFile').click(); };
+  const rm = td.querySelector('.pdfok .x');
+  if(rm) rm.onclick = async () => {
+    if(!await confirmar('Remover o PDF?', `${c.anexo} · ${c.recebedor}`, 'Remover')) return;
+    try{ await api('anexos?conta='+c.id, {method:'DELETE'}); c.anexo=null; celulaPdf(td, c); desenharCalendario(); toast('PDF removido'); }catch(e){ falha(e); }
+  };
+}
+const paraBase64 = f => new Promise((ok, erro) => { const r=new FileReader(); r.onload=()=>ok(String(r.result).split(',')[1]||''); r.onerror=()=>erro(new Error('Não consegui ler o arquivo.')); r.readAsDataURL(f); });
+$('pdfFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value=''; const alvo = pdfConta; pdfConta = null;
+  if(!f || !alvo) return;
+  if(!/\.pdf$/i.test(f.name) && f.type!=='application/pdf') return toast('Escolha um arquivo PDF.');
+  if(f.size > 3*1024*1024) return toast('O PDF pode ter no máximo 3 MB.');
+  alvo.td.innerHTML = '<small class="hint" style="margin:0">enviando…</small>';
+  try{ const r = await api('anexos?conta='+alvo.c.id, {method:'POST', body:{ nome:f.name, dados: await paraBase64(f) }});
+    alvo.c.anexo = r.anexo; toast('PDF anexado'); desenharCalendario(); }
+  catch(err){ falha(err); }
+  celulaPdf(alvo.td, alvo.c);
+};

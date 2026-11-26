@@ -90,11 +90,12 @@
     <div class="contasbox" id="contasBox" hidden>
       <div class="cbh"><h3>Contas a pagar</h3><span class="cbs" id="cbResumo"></span><button class="btn sm" id="bColar" type="button">Colar do Excel</button></div>
       <table class="ctab">
-        <thead><tr><th>Recebedor</th><th class="cv2">Valor (R$)</th><th class="cd2">Vencimento</th><th class="ca"></th></tr></thead>
-        <tbody><tr class="novo"><td><input id="nRec" maxlength="120" placeholder="Nome do recebedor"></td><td class="cv2"><input id="nVal" inputmode="decimal" placeholder="0,00"></td><td class="cd2"><input id="nData" type="date"></td><td class="ca"><button class="btn sm primary" id="bAddConta" type="button">+<span class="lbl"> Adicionar</span></button></td></tr></tbody>
+        <thead><tr><th>Recebedor</th><th class="cv2">Valor (R$)</th><th class="cd2">Vencimento</th><th class="cpdf">PDF</th><th class="ca"></th></tr></thead>
+        <tbody><tr class="novo"><td><input id="nRec" maxlength="120" placeholder="Nome do recebedor"></td><td class="cv2"><input id="nVal" inputmode="decimal" placeholder="0,00"></td><td class="cd2"><input id="nData" type="date"></td><td class="cpdf"><small class="hint" style="margin:0">depois de adicionar</small></td><td class="ca"><button class="btn sm primary" id="bAddConta" type="button">+<span class="lbl"> Adicionar</span></button></td></tr></tbody>
       </table>
       <div class="cscroll"><table class="ctab"><tbody id="cLista"></tbody></table></div>
-      <small class="hint">Mostra as contas dos últimos 90 dias em diante. Cada alteração salva sozinha e já aparece no calendário do cliente.</small>
+      <input type="file" id="pdfFile" accept="application/pdf,.pdf" hidden>
+      <small class="hint">Mostra as contas dos últimos 90 dias em diante. Cada alteração salva sozinha e já aparece no calendário do cliente. Anexe o PDF do boleto ou da nota (até 3 MB): o cliente vê clicando no dia do calendário.</small>
     </div>
     <div class="ctrbox" id="contratosBox" hidden>
       <div class="cbh"><h3>Contratos</h3><span class="cbs" id="ctrResumo"></span><button class="btn sm primary" id="bNovoCtr" type="button">+ Novo contrato</button></div>

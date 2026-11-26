@@ -33,19 +33,20 @@ function prettyLabel(raw){
 }
 
 function parseDRE(g){
-  if(!g) throw new Error('Não encontrei a aba "DRE FINANCEIRO".');
+  if(!g) throw new Error('Não encontrei a aba "DRE FINANCEIRO" (nem "D.R.E Gerencial").');
   let hr=-1, cols=null, labelCol=0;
   for(let r=0;r<Math.min(g.length,40) && hr<0;r++){
     const row=g[r]||[]; const c={};
     row.forEach((v,i)=>{ const k=MESES.findIndex(m=>norm(m)===norm(v)); if(k>=0 && !(k in c)) c[k]=i; });
     if(Object.keys(c).length>=12){ hr=r; cols=c; labelCol=Math.max(0,row.findIndex(v=>typeof v==='string'&&v.trim()&&!MESES.some(m=>norm(m)===norm(v)))); }
   }
-  if(hr<0) throw new Error('Na aba DRE FINANCEIRO não achei a linha de cabeçalho com Jan…Dez.');
+  if(hr<0) throw new Error('Na aba da DRE não achei a linha de cabeçalho com Jan…Dez.');
   const rows=[]; let parent=null, inFin=false;
   for(let r=hr+1;r<g.length;r++){
     const row=g[r]||[]; const raw=row[labelCol];
     if(typeof raw!=='string' || !raw.trim()) continue;
-    const key=norm(raw);
+    let key=norm(raw);
+    if(key.startsWith('faturamento bruto')) key='faturamento bruto';   // "Faturamento Bruto (emitido)"
     const vals=MESES.map((_,k)=>num(row[cols[k]])||0);
     const isTotal=/^\s*\(\s*=\s*\)/.test(raw);
     let type;
@@ -63,7 +64,7 @@ function parseDRE(g){
   }
   const by = k => rows.find(r=>r.key===k);
   const need = ['receita bruta','resultado liquido'];
-  for(const k of need) if(!by(k)) throw new Error(`Na DRE FINANCEIRO não achei a linha "${k}".`);
+  for(const k of need) if(!by(k)) throw new Error(`Na aba da DRE não achei a linha "${k}".`);
   return {rows, by};
 }
 
@@ -106,11 +107,55 @@ function nomeBanco(v){
   return t.split(/\s+[–—-]\s+|\s*\(/)[0].trim() || null;
 }
 
+// Formato "Relatório Gerencial": não tem Base Dash. Os dados saem do DASH, de SALDOS E APLICAÇÕES e do nome da aba de extrato.
+function baseGerencial(wb){
+  const S={}, nb={}; let sel=null;
+  const mesIdx = v => MESES.findIndex(m=>norm(m)===norm(v));
+  const cap = t => { t=String(t).trim(); return t.charAt(0).toUpperCase()+t.slice(1).toLowerCase(); };
+  const ext = wb.SheetNames.map(n=>String(n).match(/^\s*extrato\s+(.+?)\s*$/i)).find(Boolean);
+  const banco = ext ? cap(ext[1]) : null;
+  const dash = sheetGrid(wb,'DASH');
+  if(dash){
+    const txt = norm(dash.flat().filter(v=>typeof v==='string').join(' | '));
+    const ccNaoUsada = /nao usad\w* [a-z ]*c c\b/.test(txt);
+    for(const row of dash){ const r=row||[]; const i=r.findIndex(v=>norm(v).startsWith('mes de ref'));
+      if(i>=0){ const v=r.slice(i+1).find(x=>x!=null && String(x).trim()!==''); const k=mesIdx(v); if(k>=0){ sel=k+1; break; } } }
+    // tabela de evolução mensal com saldos
+    for(let r=0;r<dash.length && !S['bb conta'];r++){
+      const H=(dash[r]||[]).map(norm); const iM=H.findIndex(x=>x==='mes'); if(iM<0) continue;
+      const iCC=H.findIndex(x=>x==='saldo final' || x==='saldo c c' || x==='saldo em conta');
+      const iAp=H.findIndex(x=>x==='saldo aplicacoes');
+      if(iCC<0 && iAp<0) continue;
+      const cc=Array(12).fill(null), ap=Array(12).fill(null);
+      for(let k=r+1;k<dash.length;k++){ const row=dash[k]||[]; const m=mesIdx(row[iM]); if(m<0) continue;
+        if(iCC>=0 && typeof row[iCC]==='number') cc[m]=row[iCC]; if(iAp>=0 && typeof row[iAp]==='number') ap[m]=row[iAp]; }
+      if(iCC>=0 && !(ccNaoUsada && H[iCC]==='saldo c c')) S['bb conta']=cc;
+      if(iAp>=0) S['rende facil bb']=ap;
+    }
+  }
+  const sa = sheetGrid(wb,'SALDOS E APLICAÇÕES') || sheetGrid(wb,'SALDOS E APLICACOES');
+  if(sa){
+    let cols=null;
+    for(const row of sa){ const r=row||[]; const c={}; r.forEach((v,i)=>{ const k=mesIdx(v); if(k>=0 && !(k in c)) c[k]=i; });
+      if(!cols){ if(Object.keys(c).length>=12) cols=c; continue; }
+      const k=norm(r.find(v=>typeof v==='string')); if(!k) continue;
+      const ser = f => MESES.map((_,m)=>{ const v=r[cols[m]]; return typeof v==='number' ? f(v) : null; });
+      if(k==='saldo final' && !S._apl){ S['rende facil bb']=ser(v=>v); S._apl=1; }
+      else if(k==='aplicacoes' && !S['aplicacoes totais']) S['aplicacoes totais']=ser(Math.abs);
+      else if(k==='resgates' && !S['resgates totais']) S['resgates totais']=ser(Math.abs);
+      else if(k==='rendimento' && !S['bb rendimento']) S['bb rendimento']=ser(v=>v);
+      else if(k==='iof' || k==='ir'){ const v=ser(Math.abs); S['impostos totais']=(S['impostos totais']||Array(12).fill(null)).map((x,i)=>x==null&&v[i]==null?null:(x||0)+(v[i]||0)); }
+    }
+  }
+  if(banco){ if(S['bb conta']) nb.bb=banco; if(S['rende facil bb']) nb.rende=banco; }
+  return { series:k=>S[k]||null, scalar:(k,c)=> k==='mes selecionado dash' ? sel : null, cart:{}, bancos:nb };
+}
+
 function anoDaPlanilha(wb){
-  for(const name of ['DASH','DRE FINANCEIRO','FECHAMENTO MÊS']){
+  for(const name of ['DASH','DRE FINANCEIRO','FECHAMENTO MÊS','D.R.E Gerencial','CAPA']){
     const g=sheetGrid(wb,name); if(!g) continue;
     for(const row of g.slice(0,120)) for(const v of (row||[])){
-      if(typeof v==='string'){ const m=v.match(/\b\d{2}\/\d{2}\/(20\d{2})\b/)||v.match(/RESULTADO\s+(20\d{2})/i); if(m) return +m[1]; }
+      if(typeof v==='string'){ const m=v.match(/\b\d{2}\/\d{2}\/(20\d{2})\b/)||v.match(/RESULTADO\s+(20\d{2})/i)||v.match(/Exerc[ií]cio\s+(20\d{2})/i); if(m) return +m[1]; }
     }
   }
   return new Date().getFullYear();
@@ -122,8 +167,9 @@ function dataLancamentos(wb){
 }
 
 function buildModel(wb){
-  const dre=parseDRE(sheetGrid(wb,'DRE FINANCEIRO'));
-  const base=parseBase(sheetGrid(wb,'Base Dash'));
+  const dre=parseDRE(sheetGrid(wb,'DRE FINANCEIRO') || sheetGrid(wb,'D.R.E Gerencial') || sheetGrid(wb,'DRE Gerencial'));
+  const gBase=sheetGrid(wb,'Base Dash');
+  const base = gBase || !sheetGrid(wb,'D.R.E Gerencial') ? parseBase(gBase) : baseGerencial(wb);
   const z=()=>Array(12).fill(0);
   const v = k => (dre.by(k)||{vals:z()}).vals;
   const s = (k, fill=0) => (base.series(k)||Array(12).fill(null)).map(x=>x==null?fill:x);
@@ -239,7 +285,9 @@ function render(model, mode, m){
   const marg = rb? rl/rb : 0, margPrev = P.prev && SP(model.rb) ? SP(model.rl)/SP(model.rb) : null;
   const sT=saldoTotal(P.end), sTp=saldoTotal(P.prevEnd);
   const kRes = [
-    ['Faturamento bruto', brl(fat), dlt(fat, SP(model.fat)), C.fat],
+    tem(model.fat) ? ['Faturamento bruto', brl(fat), dlt(fat, SP(model.fat)), C.fat]
+      : (()=>{ const mc=(model.dre.by('margem de contribuicao')||{vals:Array(12).fill(0)}).vals; const v=S(mc);
+          return ['Margem de contribuição', `<span class="${v<0?'neg':''}">${brl(v)}</span>`, dlt(v, SP(mc)), C.fat]; })(),
     ['Receita bruta', brl(rb), dlt(rb, SP(model.rb)), C.rec],
     ['Saídas', brl(sai), dlt(sai, SP(model.saidas), false), C.sai],
     ['Resultado líquido', `<span class="${rl<0?'neg':''}">${brl(rl)}</span>`, dlt(rl, SP(model.rl)), C.navy],
@@ -326,7 +374,7 @@ function render(model, mode, m){
   const parcialNota = P.parcial? ' · * trimestre parcial' : '';
   html += `<section class="page">${header('Desempenho', `Faturamento, receita, saídas e resultado ${unidade} · ${model.ano}${parcialNota}`)}
     <div class="grid g2 fill">
-      <div class="card"><h3>Faturamento × Receita</h3><div class="sub">R$ ${unidade}</div><div class="cv"><canvas id="c_fatrec"></canvas></div></div>
+      <div class="card"><h3>${tem(model.fat)?'Faturamento × Receita':'Receita bruta'}</h3><div class="sub">R$ ${unidade}</div><div class="cv"><canvas id="c_fatrec"></canvas></div></div>
       <div class="card"><h3>Resultado líquido ${mode==='trimestral'?'trimestral':'mensal'}</h3><div class="sub">Barras: resultado do período · linha: acumulado no ano</div><div class="cv"><canvas id="c_res"></canvas></div></div>
       <div class="card"><h3>Receita × Saídas</h3><div class="sub">R$ ${unidade}</div><div class="cv"><canvas id="c_recsai"></canvas></div></div>
       <div class="card"><h3>Evolução de caixa</h3><div class="sub">Saldo no fim de cada ${mode==='trimestral'?'trimestre':'mês'} · em contas + aplicado</div><div class="cv"><canvas id="c_caixa"></canvas></div></div>
@@ -355,11 +403,11 @@ function render(model, mode, m){
 
   /* ---------- página 4 ---------- */
   html += `<section class="page">${header(temCart ? 'Carteira, saídas e despesas financeiras' : 'Saídas e despesas financeiras', temCart ? `Saídas e despesas financeiras: ${P.secaoSub} · carteira: acumulado do ano` : `${P.secaoSub} · para onde foi o dinheiro`)}
-    <div class="grid ${temCart?'g2b':'g2'} fill">
+    <div class="grid ${temCart?'g2b':model.finKids.length?'g2':''} fill">
       ${temCart ? `<div class="card"><h3>Títulos por banco</h3><div class="sub">Participação no total de títulos do ano</div><div class="cv"><canvas id="c_tit"></canvas></div></div>` : ''}
       <div class="card"><h3>Saídas por categoria</h3><div class="sub">${P.secaoSub} (R$)</div><div class="cv"><canvas id="c_cat"></canvas></div></div>
       ${temCart ? `<div class="card"><h3>Posição da carteira por banco</h3><div class="sub">% recebido, em aberto e vencido</div><div class="cv"><canvas id="c_pos"></canvas></div></div>` : ''}
-      <div class="card"><h3>Despesas financeiras por tipo</h3><div class="sub">${P.secaoSub} · total ${brl(fin)}</div><div class="cv"><canvas id="c_fin"></canvas></div></div>
+      ${model.finKids.length ? `<div class="card"><h3>Despesas financeiras por tipo</h3><div class="sub">${P.secaoSub} · total ${brl(fin)}</div><div class="cv"><canvas id="c_fin"></canvas></div></div>` : ''}
     </div>${footer(++PG,NP,footTxt)}</section>`;
 
   /* ---------- página 5 ---------- */
@@ -433,7 +481,7 @@ function render(model, mode, m){
   const fade = (color) => data => data.map((_,i)=> i===curIdx || mode==='anual' ? color : color+'99');
 
   mk('c_fatrec',{type: mode==='trimestral'?'bar':'line',data:{labels:L,datasets:[
-    mode==='trimestral'? bar('Faturamento bruto',agg(model.fat),C.fat) : line('Faturamento bruto',agg(model.fat),C.fat),
+    ...(tem(model.fat) ? [mode==='trimestral'? bar('Faturamento bruto',agg(model.fat),C.fat) : line('Faturamento bruto',agg(model.fat),C.fat)] : []),
     mode==='trimestral'? bar('Receita bruta',agg(model.rb),C.rec) : line('Receita bruta',agg(model.rb),C.rec)]},
     options:{scales:{x:xC,y:yK({beginAtZero:true})}}});
   mk('c_res',{data:{labels:L,datasets:[
@@ -471,7 +519,7 @@ function render(model, mode, m){
   const cats = model.saidasCats.map(r=>[r.label.replace(/^\(−\)\s*/,''), -S(r.vals)]).filter(x=>Math.abs(x[1])>0.5).sort((a,b)=>b[1]-a[1]);
   hbar('c_cat', cats, C.sai);
   const fk = model.finKids.map(r=>[r.label, -S(r.vals)]).filter(x=>Math.abs(x[1])>0.5).sort((a,b)=>b[1]-a[1]);
-  hbar('c_fin', fk, C.roxo);
+  if(document.getElementById('c_fin')) hbar('c_fin', fk, C.roxo);
   if(invTem){
     const invB = B.map(b=>-invRows.reduce((t,r)=>t+sumIdx(r.vals,b.idx),0));
     const realB = agg(model.rl), semB = realB.map((v,i)=>v+invB[i]);
@@ -576,16 +624,16 @@ function calendarioHTML(itens, mes){
   for(let d=1; d<=nd; d++){
     const iso = mes+'-'+String(d).padStart(2,'0'), l = porDia[d]||[];
     const cls = ['cd', iso<hoje?'pass':'', iso===hoje?'hoje':'', (new Date(a,m-1,d).getDay()%6===0)?'fds':''].join(' ');
-    cels += `<div class="${cls}"><div class="cdh"><span class="dn">${d}</span>${l.length?`<span class="dt">${curto(soma(l))}</span>`:''}</div>`
-      + l.slice(0,MAXC).map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':x.tipo==='repasse'?' rep':''}" title="${esc(x.recebedor)} · ${brl(x.valor)}"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('')
+    cels += `<div class="${cls}${l.length?' clic':''}"${l.length?` data-dia="${iso}" role="button" tabindex="0" title="Ver as contas do dia ${d}"`:''}><div class="cdh"><span class="dn">${d}</span>${l.length?`<span class="dt">${curto(soma(l))}</span>`:''}</div>`
+      + l.slice(0,MAXC).map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':x.tipo==='repasse'?' rep':''}"><b>${x.anexo?'<i class="clip">📎</i>':''}${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('')
       + (l.length>MAXC?`<div class="mais">+${l.length-MAXC} conta(s) · ${curto(soma(l.slice(MAXC)))}</div>`:'') + '</div>';
   }
   const resto = (7 - (primeiro+nd)%7) % 7;
   for(let i=0;i<resto;i++) cels += '<div class="cd fora"></div>';
   const agenda = Object.keys(porDia).map(Number).sort((x,y)=>x-y).map(d=>{
     const iso = mes+'-'+String(d).padStart(2,'0'), l = porDia[d];
-    return `<div class="ag ${iso<hoje?'pass':''} ${iso===hoje?'hoje':''}"><div class="agd"><b>${d}</b><span>${DIAS_SEM[new Date(a,m-1,d).getDay()]}</span></div><div class="agl">`
-      + l.map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':x.tipo==='repasse'?' rep':''}"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('') + '</div></div>';
+    return `<div class="ag clic ${iso<hoje?'pass':''} ${iso===hoje?'hoje':''}" data-dia="${iso}" role="button" tabindex="0"><div class="agd"><b>${d}</b><span>${DIAS_SEM[new Date(a,m-1,d).getDay()]}</span></div><div class="agl">`
+      + l.map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':x.tipo==='repasse'?' rep':''}"><b>${x.anexo?'<i class="clip">📎</i>':''}${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('') + '</div></div>';
   }).join('') || '<div class="nodata">Nenhuma conta neste mês.</div>';
   const n = (REPORT_EL ? REPORT_EL.querySelectorAll('.page:not(.cal-page)').length : 0) + 1;
   return `<section class="page cal-page">${header(`Contas a pagar — ${nomeMes(mes)}`, 'Vencimentos do mês · boletos cadastrados pelo consultor')}
@@ -595,8 +643,10 @@ function calendarioHTML(itens, mes){
     <div class="agenda">${agenda}</div>
     ${footer(n, n, `Contas a pagar · ${esc(EMP_NOME)}`)}</section>`;
 }
+let CAL_ITENS = [];
 function anexarCalendario(itens, mes){
   if(!REPORT_EL) return;
+  CAL_ITENS = itens || [];
   const velho = REPORT_EL.querySelector('.cal-page');
   const div = document.createElement('div'); div.innerHTML = calendarioHTML(itens, mes);
   const novo = div.firstElementChild;
@@ -930,3 +980,41 @@ function repassesNoCalendario(rep, mes){
   for(const i of resumoRepasses(rep).pend){ if(!i.vence.startsWith(mes)) continue; (por[i.vence] = por[i.vence] || []).push(i); }
   return Object.entries(por).map(([d,l])=>({ id:'rep-'+d, recebedor:`Repasses a fornecedores (${l.length})`, valor:l.reduce((t,i)=>t+i.v,0), vencimento:d, tipo:'repasse' }));
 }
+
+
+/* =====================================================================
+   10. DIA DO CALENDÁRIO: clique abre as contas do dia e os PDFs anexados
+   ===================================================================== */
+// endereço do PDF de uma conta (o painel do cliente acrescenta o token)
+let ANEXO_URL = id => '/api/anexos?conta='+encodeURIComponent(id);
+const DIAS_LONGO = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+function abrirDia(iso){
+  const l = CAL_ITENS.filter(x=>x.vencimento===iso).sort((a,b)=>b.valor-a.valor);
+  if(!l.length) return;
+  const d = new Date(iso+'T12:00:00'), tot = l.reduce((t,x)=>t+x.valor,0);
+  const tipo = x => x.tipo==='contrato' ? 'Parcela de contrato' : x.tipo==='repasse' ? 'Repasses a fornecedores' : x.anexo ? 'Conta · PDF anexado' : 'Conta';
+  let m = $('mDia');
+  if(!m){ m=document.createElement('div'); m.className='modal'; m.id='mDia'; document.body.append(m);
+    m.addEventListener('click', e=>{ if(e.target===m || e.target.closest('[data-fechar]')) fecharDia(); });
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !m.hidden) fecharDia(); }); }
+  m.innerHTML = `<div class="mbox diabox" role="dialog" aria-modal="true" aria-label="Contas do dia">
+    <div class="diah"><div><h2>${d.getDate()} de ${MESES_LONGO[d.getMonth()]}</h2><p class="s">${DIAS_LONGO[d.getDay()]} · ${l.length} item(ns) · ${brl(tot)}</p></div>
+      <button class="xfech" type="button" data-fechar aria-label="Fechar">×</button></div>
+    <div class="dlist">${l.map((x,i)=>`<div class="ditem ${x.tipo||'conta'}"><div class="dinfo"><b>${esc(x.recebedor)}</b><span>${tipo(x)}</span></div><div class="dval">${brl(x.valor)}</div>
+      ${x.anexo ? `<div class="dacts"><button class="btn sm primary" type="button" data-ver="${i}">Ver PDF</button><a class="btn sm" href="${ANEXO_URL(x.id)}" target="_blank" rel="noopener">Abrir em nova aba</a></div>` : ''}</div>`).join('')}</div>
+    <div class="dview" hidden><div class="dvh"><b></b><button class="btn sm" type="button" data-fecharpdf>Fechar PDF</button></div><iframe title="PDF anexado"></iframe></div>
+  </div>`;
+  m.querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>{ const x=l[+b.dataset.ver], v=m.querySelector('.dview');
+    v.hidden=false; v.querySelector('b').textContent=x.anexo; v.querySelector('iframe').src=ANEXO_URL(x.id); m.querySelector('.mbox').classList.add('compdf');
+    v.scrollIntoView({behavior:'smooth', block:'nearest'}); });
+  m.querySelector('[data-fecharpdf]').onclick=()=>{ const v=m.querySelector('.dview'); v.hidden=true; v.querySelector('iframe').src='about:blank'; m.querySelector('.mbox').classList.remove('compdf'); };
+  m.hidden=false;
+}
+function fecharDia(){ const m=$('mDia'); if(!m) return; m.hidden=true; m.innerHTML=''; }
+document.addEventListener('click', e=>{
+  if(document.body.classList.contains('tv')) return;
+  const c = e.target.closest('.cal-page [data-dia]'); if(c) abrirDia(c.dataset.dia);
+});
+document.addEventListener('keydown', e=>{
+  if((e.key==='Enter' || e.key===' ') && e.target.matches && e.target.matches('.cal-page [data-dia]')){ e.preventDefault(); abrirDia(e.target.dataset.dia); }
+});

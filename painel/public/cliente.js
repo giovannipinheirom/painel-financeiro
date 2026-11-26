@@ -1,6 +1,7 @@
 /* Página do cliente: link /c/<token> + senha. Mostra só a empresa dele e tem o modo TV. */
 REPORT_EL = $('report');
 const token = (location.pathname.match(/\/c\/([a-z0-9]{24})\/?$/) || [])[1];
+ANEXO_URL = id => '/api/anexos?conta='+encodeURIComponent(id)+'&token='+token;
 const cs = { model:null, mode:'mensal', m:null, relId:null, cache:new Map(), dados:null, contas:null, calMes:mesAtual() };
 
 function status(t, s){ const el=$('status'); if(t==null){ el.hidden=true; return; } el.hidden=false; el.innerHTML=''; const b=document.createElement('b'); b.textContent=t; el.append(b, document.createTextNode(s||'')); }

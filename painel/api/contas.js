@@ -26,9 +26,10 @@ export default rota(async (req, res) => {
 
   if (req.method === 'GET') {
     if (!empresa) throw new HttpError(400, 'Informe a empresa.');
-    const linhas = await sql`select id, recebedor, valor::float8 as valor, to_char(vencimento, 'YYYY-MM-DD') as vencimento
-                               from contas_pagar where empresa_id = ${empresa} and vencimento >= current_date - 90
-                              order by vencimento, lower(recebedor) limit 1000`;
+    const linhas = await sql`select c.id, c.recebedor, c.valor::float8 as valor, to_char(c.vencimento, 'YYYY-MM-DD') as vencimento, a.nome as anexo
+                               from contas_pagar c left join conta_anexos a on a.conta_id = c.id
+                              where c.empresa_id = ${empresa} and c.vencimento >= current_date - 90
+                              order by c.vencimento, lower(c.recebedor) limit 1000`;
     return res.json(linhas);
   }
   if (req.method === 'POST') {

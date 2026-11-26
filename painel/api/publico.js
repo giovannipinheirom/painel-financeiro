@@ -13,10 +13,11 @@ async function contasDoMes(sql, e, mes) {
   if (!e.contas_pagar) return null;
   if (!MES_OK.test(mes || '')) mes = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 7);
   const ini = mes + '-01';
-  const itens = await sql`select id, recebedor, valor::float8 as valor, to_char(vencimento, 'YYYY-MM-DD') as vencimento
-                            from contas_pagar where empresa_id = ${e.id}
-                             and vencimento >= ${ini}::date and vencimento < (${ini}::date + interval '1 month')
-                           order by vencimento, lower(recebedor) limit 1000`;
+  const itens = await sql`select c.id, c.recebedor, c.valor::float8 as valor, to_char(c.vencimento, 'YYYY-MM-DD') as vencimento, a.nome as anexo
+                            from contas_pagar c left join conta_anexos a on a.conta_id = c.id
+                           where c.empresa_id = ${e.id}
+                             and c.vencimento >= ${ini}::date and c.vencimento < (${ini}::date + interval '1 month')
+                           order by c.vencimento, lower(c.recebedor) limit 1000`;
   if (e.contratos) {
     // parcelas de contratos entram sozinhas no calendário
     const ps = await sql`select * from (

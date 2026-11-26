@@ -84,6 +84,14 @@ async function migrar() {
     conta text
   )`;
   await sql`create index if not exists repasses_empresa_sol on repasses (empresa_id, solicitado)`;
+  // v6: PDF anexado a uma conta a pagar (boleto, nota etc.)
+  await sql`create table if not exists conta_anexos (
+    conta_id text primary key references contas_pagar(id) on delete cascade,
+    nome text not null,
+    tamanho int not null,
+    dados bytea not null,
+    criado_em timestamptz not null default now()
+  )`;
 }
 
 // Repasses para o painel: os não pagos (qualquer data) + os dos últimos ~13 meses
