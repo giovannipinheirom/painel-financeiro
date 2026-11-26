@@ -28,7 +28,7 @@ async function carregar(rel, { silencioso=false } = {}){
 
 /* ---------- senha ---------- */
 function pedirSenha(emp){
-  sairTv(); status(null); $('v-emp').hidden=true; $('bSair').hidden=true; $('vSenha').hidden=false;
+  sairTv(); status(null); $('v-emp').hidden=true; $('bSair').hidden=true; $('vSenha').hidden=false; document.body.classList.remove('has-side');
   $('sNome').textContent = emp && emp.nome ? emp.nome : 'Painel financeiro';
   setTimeout(()=>$('iSenha').focus(), 50);
 }
@@ -46,7 +46,9 @@ $('bSair').onclick = async () => { await chamar('DELETE', '/api/publico?token='+
 
 /* ---------- painel ---------- */
 function mostrar(d){
-  cs.dados=d; status(null); $('vSenha').hidden=true; $('v-emp').hidden=false; $('bSair').hidden=false;
+  cs.dados=d; status(null); $('vSenha').hidden=true; $('v-emp').hidden=false; $('bSair').hidden=false; document.body.classList.add('has-side');
+  $('sbNome').textContent=d.empresa.nome; $('sbAv').textContent=iniciais(d.empresa.nome); $('sbAv').style.setProperty('--c','#902884');
+  $('sbMeta').textContent = d.relatorio ? 'atualizado em '+diaBR(d.relatorio.enviadoEm) : (d.empresa.cnpj||'');
   EMP_NOME = d.empresa.nome; REPORT_OPTS.posicao = d.empresa.posicao!==false;
   cs.contas = d.contas || null; if(cs.contas) cs.calMes = cs.contas.mes;
   cs.contratos = d.contratos || null;
@@ -169,3 +171,10 @@ document.addEventListener('visibilitychange', async () => { if(tv.on && document
 window.addEventListener('resize', () => { if(tv.on) tvEncaixar(); });
 
 carregar(null);
+
+/* ---------- barra lateral ---------- */
+prepararLateral();
+vigiarPaginas($('sbPaginas'));
+$('sbPdf').onclick = () => { fecharLateralMobile(); window.print(); };
+$('sbTv').onclick = () => { fecharLateralMobile(); $('bTv').click(); };
+$('sbSair').onclick = () => $('bSair').click();

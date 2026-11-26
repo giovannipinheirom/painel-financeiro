@@ -16,9 +16,30 @@
 </head>
 <body class="is-admin">
 <header class="top"><div class="topin">
+  <button class="sidebtn" id="bSide" type="button" title="Mostrar ou esconder a barra lateral" aria-label="Barra lateral" data-ic="side"></button>
   <a class="brandmini" href="#"><img class="ic" src="/img/icone.png" alt=""><img class="wm" src="/img/marca.png" alt="inova com valor"><span class="app">Evolução Financeira</span></a>
   <div class="topright"><span class="pill">Modo consultor</span><button class="btn sm" id="bSair" hidden>Sair</button></div>
 </div></header>
+
+<aside class="side" id="side" aria-label="Navegação">
+  <label class="sbbusca"><span data-ic="search"></span><input id="sbBusca" type="search" placeholder="Buscar empresa" autocomplete="off"></label>
+  <nav class="sbnav">
+    <a class="sbi" href="#" id="sbHome" data-ic="home"><span>Visão geral</span></a>
+    <div class="sbh"><span>Empresas</span><button type="button" id="sbNova" title="Nova empresa" data-ic="plus"></button></div>
+    <div id="sbEmp"></div>
+    <div id="sbEmpNav" hidden>
+      <div class="sbh"><span id="sbEmpNome">Nesta empresa</span></div>
+      <a class="sbi" href="#" data-ir="adminrow" data-ic="upload"><span>Planilha e histórico</span></a>
+      <a class="sbi" href="#" data-ir="contasBox" data-ic="cal"><span>Contas a pagar</span></a>
+      <a class="sbi" href="#" data-ir="contratosBox" data-ic="sign"><span>Contratos</span></a>
+      <a class="sbi" href="#" id="sbLink" data-ic="link"><span>Link do cliente</span></a>
+      <div class="sbh"><span>Painel do cliente</span></div>
+      <div id="sbPaginas"></div>
+    </div>
+  </nav>
+  <div class="sbfoot"><button type="button" class="sbi" id="sbSair" data-ic="out"><span>Sair</span></button></div>
+</aside>
+<div class="sideveu" id="sideVeu"></div>
 
 <main>
   <div id="status" class="status"><b>Carregando…</b>Conectando ao painel.</div>
@@ -34,9 +55,11 @@
 
   <section id="v-home" hidden>
     <div class="pagehead">
-      <div><h1>Empresas</h1><p>Cadastre o cliente, envie a planilha do mês e mande o link do painel para ele.</p></div>
+      <div><h1 id="hOla">Visão geral</h1><p>Cadastre o cliente, envie a planilha do mês e mande o link do painel para ele.</p></div>
       <button class="btn primary" id="bNova">+ Nova empresa</button>
     </div>
+    <div id="ovw"></div>
+    <div class="sec2" id="cardsTit"><h2>Empresas</h2><span id="cardsSub"></span></div>
     <div id="cards" class="cards"></div>
   </section>
 
@@ -55,7 +78,7 @@
       <span id="shareSenha"></span> O cliente vê só o painel desta empresa. Se o link vazar ou o contrato acabar,
       <a href="#" id="bNovoLink" style="color:var(--roxo);font-weight:600;text-decoration:underline">gere um link novo</a> (o antigo para de funcionar) ou troque a senha em <b>Editar</b>.
     </div>
-    <div class="adminrow">
+    <div class="adminrow" id="adminrow">
       <div class="drop" id="drop">
         <input type="file" id="file" accept=".xlsb,.xlsx,.xlsm,.xls" hidden>
         <div class="ico">⬆</div>

@@ -32,7 +32,7 @@ function confirmar(title, text, ok='Excluir'){
 }
 
 /* ---------- login ---------- */
-function mostrarLogin(){ $('bSair').hidden=true; show('login'); setTimeout(()=>$('iSenha').focus(),50); }
+function mostrarLogin(){ $('bSair').hidden=true; document.body.classList.remove('has-side'); show('login'); setTimeout(()=>$('iSenha').focus(),50); }
 $('vLogin').onsubmit = async ev => {
   ev.preventDefault(); $('loginMsg').textContent=''; $('bEntrar').disabled=true;
   try{ await api('login',{method:'POST', body:{senha:$('iSenha').value}}); $('iSenha').value=''; iniciar(); }
@@ -48,12 +48,13 @@ $('bSair').onclick = async () => { try{ await api('login',{method:'DELETE'}); }c
 })();
 let iniciado=false;
 function iniciar(){
-  $('bSair').hidden=false;
+  $('bSair').hidden=false; document.body.classList.add('has-side');
+  if(!st.empresas.length) carregarEmpresas();
   if(!iniciado){ window.addEventListener('hashchange', rotear); iniciado=true; }
   rotear();
 }
 function rotear(){
-  const h=location.hash.slice(1);
+  const h=location.hash.slice(1); fecharLateralMobile();
   if(/^e-[a-z0-9]+$/.test(h)) return abrirEmpresa(h.slice(2));
   fecharEmpresa(); show('home'); carregarEmpresas();
 }
@@ -61,10 +62,11 @@ function rotear(){
 /* ---------- lista de empresas ---------- */
 async function carregarEmpresas(){
   if(!st.empresas.length) $('cards').innerHTML='<div class="nodata">Carregando empresas…</div>';
-  try{ st.empresas = await api('empresas'); desenharCards(); }
+  try{ st.empresas = await api('empresas'); desenharCards(); desenharLateral(); }
   catch(e){ falha(e); if(!e.silent) $('cards').innerHTML='<div class="nodata">Não consegui carregar as empresas. Recarregue a página.</div>'; }
 }
 function desenharCards(){
+  desenharVisao();
   const box=$('cards'); box.innerHTML='';
   for(const e of st.empresas){
     const u=e.ultimo, cor=corDe(e);
@@ -137,6 +139,7 @@ $('bDelEmp').onclick = async () => {
 function fecharEmpresa(){
   st.seq++; Object.assign(st,{emp:null, rels:[], relId:null, model:null, rendered:null, contas:[], contratos:[], calMes:mesAtual()});
   charts.forEach(c=>c.destroy()); charts=[]; REPORT_EL.innerHTML=''; $('shareBox').hidden=true; showErr('');
+  desenharLateral();
 }
 async function abrirEmpresa(id){
   if(st.emp && st.emp.id===id) return;
@@ -160,6 +163,7 @@ function cabecalho(){
   REPORT_OPTS.extra = (e.contas ? 1 : 0) + (e.contratos ? 1 : 0);
   $('contasBox').hidden = !e.contas;
   $('contratosBox').hidden = !e.contratos;
+  desenharLateral();
   document.title=e.nome+' · Evolução Financeira';
   if(!$('shareBox').hidden) preencherShare();
 }
@@ -492,3 +496,62 @@ $('fGerar').onsubmit = async ev => {
   catch(e){ falha(e); }
   $('bGerarSim').disabled=false;
 };
+
+
+/* ---------- barra lateral e visão geral ---------- */
+prepararLateral();
+vigiarPaginas($('sbPaginas'));
+$('sbHome').onclick = ev => { ev.preventDefault(); location.hash=''; };
+$('sbNova').onclick = () => { fecharLateralMobile(); abrirForm(null); };
+$('sbSair').onclick = () => $('bSair').click();
+$('sbLink').onclick = ev => { ev.preventDefault(); fecharLateralMobile(); $('bShare').click(); $('shareBox').scrollIntoView({behavior:'smooth', block:'center'}); };
+document.querySelectorAll('[data-ir]').forEach(a=>a.onclick = ev => { ev.preventDefault(); fecharLateralMobile(); $(a.dataset.ir).scrollIntoView({behavior:'smooth', block:'start'}); });
+$('sbBusca').addEventListener('input', desenharLateral);
+
+function desenharLateral(){
+  const q = norm($('sbBusca').value), box = $('sbEmp'), atual = st.emp && st.emp.id;
+  const lista = st.empresas.filter(e=>!q || norm(e.nome).includes(q));
+  box.innerHTML = lista.length ? '' : `<div class="sbvazio">${st.empresas.length ? 'Nenhuma empresa encontrada.' : 'Nenhuma empresa ainda.'}</div>`;
+  for(const e of lista){
+    const a=document.createElement('a'); a.className='sbi emp'+(e.id===atual?' on':''); a.href='#e-'+e.id;
+    const u=e.ultimo, val = u && typeof u.rl==='number' ? `<em class="${u.rl<0?'neg':''}">${esc(curto(u.rl))}</em>` : (e.temSenha ? '' : '<em class="alerta">sem senha</em>');
+    a.innerHTML = `<i class="sbav" style="--c:${corDe(e)}">${esc(iniciais(e.nome))}</i><span>${esc(e.nome)}</span>${val}`;
+    box.append(a);
+  }
+  $('sbHome').classList.toggle('on', !atual && !$('v-home').hidden);
+  $('sbEmpNav').hidden = !st.emp;
+  if(st.emp){
+    $('sbEmpNome').textContent = st.emp.nome;
+    document.querySelector('[data-ir="contasBox"]').hidden = !st.emp.contas;
+    document.querySelector('[data-ir="contratosBox"]').hidden = !st.emp.contratos;
+  }
+}
+
+// resumo da carteira de empresas no topo da tela inicial
+function desenharVisao(){
+  const es = st.empresas, hoje = Date.now(), DIAS = 864e5;
+  const com = es.filter(e=>e.ultimo && typeof e.ultimo.rb==='number');
+  const emDia = es.filter(e=>e.ultimo && hoje-new Date(e.ultimo.enviadoEm) < 45*DIAS);
+  const rb = com.reduce((t,e)=>t+e.ultimo.rb,0), rl = com.reduce((t,e)=>t+e.ultimo.rl,0);
+  const pos = com.filter(e=>e.ultimo.rl>=0).length;
+  const pend = [];
+  for(const e of es){
+    if(!e.temSenha) pend.push([e, 'Sem senha: o cliente ainda não consegue abrir o painel', 'Definir senha']);
+    if(!e.ultimo) pend.push([e, 'Nenhuma planilha enviada ainda', 'Enviar planilha']);
+    else if(hoje-new Date(e.ultimo.enviadoEm) >= 45*DIAS) pend.push([e, `Última planilha em ${diaBR(e.ultimo.enviadoEm)}`, 'Atualizar']);
+  }
+  const k = (l,v,d,c,ic) => `<div class="okpi" style="--c:${c}"><div class="oic">${ICON[ic]}</div><div class="ol">${l}</div><div class="ov">${v}</div><div class="od">${d}</div></div>`;
+  $('cardsSub').textContent = es.length ? `${es.length} cadastrada(s)` : '';
+  $('ovw').innerHTML = !es.length ? `<div class="obem"><div class="oic big">${ICON.spark}</div><div><b>Bem-vindo ao painel</b><span>Cadastre a primeira empresa para começar. Depois é só arrastar a planilha do mês e mandar o link para o cliente.</span></div><button class="btn primary" type="button" onclick="abrirForm(null)">+ Cadastrar empresa</button></div>` :
+    `<div class="okpis">
+      ${k('Empresas', es.length, `${es.filter(e=>e.temSenha).length} com acesso liberado`, '#566BAF', 'users')}
+      ${k('Planilhas em dia', `${emDia.length} de ${es.length}`, 'enviadas nos últimos 45 dias', '#34c759', 'upload')}
+      ${k('Receita somada', com.length? curto(rb) : '—', 'último mês de cada empresa', '#902884', 'chart')}
+      ${k('Resultado somado', com.length? `<span class="${rl<0?'neg':''}">${curto(rl)}</span>` : '—', com.length? `${pos} de ${com.length} no positivo` : 'sem planilhas ainda', '#ff9500', 'bars')}
+    </div>
+    <div class="opend">
+      <div class="oph"><h2>${pend.length ? 'Pendências' : 'Tudo em dia'}</h2><span>${pend.length ? pend.length+' item(ns) para resolver' : 'Nenhuma empresa precisa de atenção agora.'}</span></div>
+      ${pend.length ? `<div class="olist">${pend.slice(0,6).map(([e,t,acao])=>`<a class="oitem" href="#e-${esc(e.id)}"><i class="sbav" style="--c:${corDe(e)}">${esc(iniciais(e.nome))}</i><div><b>${esc(e.nome)}</b><span>${esc(t)}</span></div><em>${acao} ›</em></a>`).join('')}</div>`
+        : `<div class="ook">${ICON.check}<span>Todas as empresas têm senha e planilha recente.</span></div>`}
+    </div>`;
+}

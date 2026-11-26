@@ -15,9 +15,23 @@
 </head>
 <body>
 <header class="top"><div class="topin">
+  <button class="sidebtn" id="bSide" type="button" title="Mostrar ou esconder a barra lateral" aria-label="Barra lateral" data-ic="side"></button>
   <div class="brandmini"><img class="ic" src="/img/icone.png" alt=""><img class="wm" src="/img/marca.png" alt="inova com valor"><span class="app">Evolução Financeira</span></div>
   <div class="topright"><button class="btn sm" id="bSair" hidden>Sair</button></div>
 </div></header>
+
+<aside class="side" id="side" aria-label="Navegação">
+  <div class="sbcli"><i class="sbav big" id="sbAv"></i><div><b id="sbNome"></b><span id="sbMeta"></span></div></div>
+  <nav class="sbnav">
+    <div class="sbh"><span>Painel</span></div>
+    <div id="sbPaginas"></div>
+    <div class="sbh"><span>Ações</span></div>
+    <button type="button" class="sbi" id="sbPdf" data-ic="pdf"><span>Baixar PDF</span></button>
+    <button type="button" class="sbi" id="sbTv" data-ic="tv"><span>Modo TV</span></button>
+  </nav>
+  <div class="sbfoot"><button type="button" class="sbi" id="sbSair" data-ic="out"><span>Sair</span></button></div>
+</aside>
+<div class="sideveu" id="sideVeu"></div>
 
 <main>
   <div id="status" class="status"><b>Carregando…</b>Abrindo o seu painel.</div>

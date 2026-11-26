@@ -660,3 +660,88 @@ function anexarContratos(contratos){
       scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true, beginAtZero:true, ticks:{callback:v=>kfmt(v)}, title:{display:true,text:'parcelas no mês'}},
                y2:{position:'right', beginAtZero:true, grid:{display:false}, ticks:{callback:v=>kfmt(v)}, title:{display:true,text:'falta pagar'}} } } }));
 }
+
+/* =====================================================================
+   8. BARRA LATERAL (consultor e cliente)
+   ===================================================================== */
+const IC = (d, extra='') => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${d}</svg>`;
+const ICON = {
+  side:  IC('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/>'),
+  home:  IC('<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/>'),
+  plus:  IC('<path d="M12 5v14M5 12h14"/>'),
+  search:IC('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>'),
+  upload:IC('<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>'),
+  cal:   IC('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
+  doc:   IC('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
+  link:  IC('<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>'),
+  chart: IC('<path d="M4 20V4M4 20h16"/><path d="m7 15 4-4 3 3 5-6"/>'),
+  bars:  IC('<path d="M4 20h16"/><rect x="5.5" y="11" width="3" height="7" rx=".8"/><rect x="10.5" y="6" width="3" height="12" rx=".8"/><rect x="15.5" y="13" width="3" height="5" rx=".8"/>'),
+  table: IC('<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/>'),
+  pie:   IC('<path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>'),
+  bank:  IC('<path d="M3 9.5 12 4l9 5.5"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3.5 20h17"/>'),
+  coin:  IC('<ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7"/><path d="M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/>'),
+  users: IC('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .7 3.3 2.4 3.6 5.2"/>'),
+  sign:  IC('<path d="M4 20h16"/><path d="M14.5 4.5 19 9 9 19H4.5v-4.5z"/>'),
+  spark: IC('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>'),
+  tv:    IC('<rect x="3" y="5" width="18" height="12.5" rx="2.5"/><path d="M8.5 21h7"/>'),
+  pdf:   IC('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19.5h14"/>'),
+  out:   IC('<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 8l-4 4 4 4M6 12h10"/>'),
+  alert: IC('<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4M12 17v.5"/>'),
+  check: IC('<path d="m5 12.5 4.5 4.5L19 7"/>'),
+};
+// ícone de cada página do painel, pelo título
+function iconeDaPagina(t){
+  const n = norm(t);
+  if(/sem investimentos/.test(n)) return ICON.spark;
+  if(/desempenho/.test(n)) return ICON.chart;
+  if(/dre|demonstrativo/.test(n)) return ICON.table;
+  if(/carteira|saidas/.test(n)) return ICON.pie;
+  if(/caixa|banco/.test(n)) return ICON.bank;
+  if(/aplica/.test(n)) return ICON.coin;
+  if(/posicao|clientes/.test(n)) return ICON.users;
+  if(/contrato/.test(n)) return ICON.sign;
+  if(/contas a pagar|calend/.test(n)) return ICON.cal;
+  return ICON.bars;
+}
+// índice das páginas do painel na barra lateral, com destaque da página visível
+let IDX_OBS = null, IDX_NAV = null;
+function montarIndice(nav){
+  IDX_NAV = nav || IDX_NAV; if(!IDX_NAV || !REPORT_EL) return;
+  const ps = [...REPORT_EL.querySelectorAll('.page')];
+  if(IDX_OBS) IDX_OBS.disconnect();
+  IDX_NAV.innerHTML = ps.length ? '' : '<div class="sbvazio">As páginas aparecem aqui quando houver dados.</div>';
+  ps.forEach((p,i)=>{
+    p.id = p.id || 'pg-'+i;
+    const h = p.querySelector('.ttl h1'); let t = h ? h.textContent.replace(/\s+—.*$/,'') : 'Página '+(i+1);
+    if(/^evolucao financeira$/.test(norm(t))) t = 'Resumo do período';
+    const a = document.createElement('a'); a.className='sbi'; a.href='#'+p.id; a.dataset.alvo=p.id;
+    a.innerHTML = `${iconeDaPagina(t)}<span>${esc(t)}</span>`;
+    a.onclick = ev => { ev.preventDefault(); p.scrollIntoView({behavior:'smooth', block:'start'}); fecharLateralMobile(); };
+    IDX_NAV.append(a);
+  });
+  if(!ps.length || typeof IntersectionObserver==='undefined') return;
+  IDX_OBS = new IntersectionObserver(ents=>{
+    ents.forEach(e=>{ if(e.isIntersecting) IDX_NAV.querySelectorAll('.sbi').forEach(a=>a.classList.toggle('on', a.dataset.alvo===e.target.id)); });
+  }, { rootMargin:'-35% 0px -60% 0px' });
+  ps.forEach(p=>IDX_OBS.observe(p));
+}
+// refaz o índice sempre que as páginas do painel mudam
+let idxT = null;
+function vigiarPaginas(nav){
+  IDX_NAV = nav;
+  new MutationObserver(()=>{ clearTimeout(idxT); idxT=setTimeout(()=>montarIndice(), 60); }).observe(REPORT_EL, { childList:true });
+}
+// abrir/fechar: no computador esconde a barra; no celular abre por cima
+const LS_SIDE = 'painel.lateral';
+function alternarLateral(){
+  if(matchMedia('(max-width: 900px)').matches){ document.body.classList.toggle('side-open'); return; }
+  const off = document.body.classList.toggle('side-off');
+  try{ localStorage.setItem(LS_SIDE, off ? '0' : '1'); }catch(e){}
+}
+function fecharLateralMobile(){ document.body.classList.remove('side-open'); }
+function prepararLateral(){
+  try{ if(localStorage.getItem(LS_SIDE)==='0') document.body.classList.add('side-off'); }catch(e){}
+  document.querySelectorAll('[data-ic]').forEach(el=>{ const i=ICON[el.dataset.ic]; if(i) el.insertAdjacentHTML('afterbegin', i); });
+  const b = $('bSide'); if(b) b.onclick = alternarLateral;
+  const v = $('sideVeu'); if(v) v.onclick = fecharLateralMobile;
+}
