@@ -812,3 +812,164 @@ body.tv main{margin-left:0!important}
 .contasbox,.ctrbox{min-width:0;overflow-x:auto}
 .cscroll{overflow-x:auto}
 @media (max-width:600px){ .ctab tr.novo .cpdf .hint{display:none} .ctab.rept{min-width:560px} }
+
+/* =====================================================================
+   LIQUID GLASS
+   Fundo com as cores da marca + superfícies de vidro (blur, saturação,
+   borda de luz em cima e profundidade suave). Gráficos e tabelas ficam
+   num vidro mais claro, para leitura e desempenho.
+   ===================================================================== */
+:root{
+  --lg-bg: linear-gradient(135deg, rgba(255,255,255,.70) 0%, rgba(255,255,255,.44) 100%);
+  --lg-bg-forte: linear-gradient(135deg, rgba(255,255,255,.82) 0%, rgba(255,255,255,.62) 100%);
+  --lg-bg-claro: linear-gradient(160deg, rgba(255,255,255,.86) 0%, rgba(255,255,255,.72) 100%);
+  --lg-blur: blur(22px) saturate(185%);
+  --lg-blur-leve: blur(12px) saturate(170%);
+  --lg-rim: inset 0 1px 0 rgba(255,255,255,.95), inset 0 0 0 1px rgba(255,255,255,.55), inset 0 -1px 0 rgba(255,255,255,.22);
+  --lg-sombra: 0 12px 34px -10px rgba(48,24,88,.22), 0 2px 6px rgba(48,24,88,.06);
+  --lg-sombra-leve: 0 6px 18px -8px rgba(48,24,88,.16), 0 1px 3px rgba(48,24,88,.05);
+  --lg-borda: rgba(255,255,255,.6);
+}
+/* fundo: manchas suaves de roxo e azul da marca, fixas atrás do conteúdo */
+html{background:#eceaf5}
+body{background:transparent}
+body::before{content:"";position:fixed;inset:-10%;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(38% 42% at 8% 4%, rgba(144,40,132,.34), transparent 70%),
+    radial-gradient(36% 40% at 92% 10%, rgba(86,107,175,.38), transparent 70%),
+    radial-gradient(40% 46% at 70% 92%, rgba(181,72,122,.22), transparent 72%),
+    radial-gradient(34% 40% at 18% 86%, rgba(15,124,134,.16), transparent 72%),
+    linear-gradient(180deg,#f3f1f9 0%,#ebe8f4 100%);}
+
+/* vidro forte: moldura do app */
+.top,.side,.toolbar{background:var(--lg-bg);-webkit-backdrop-filter:var(--lg-blur);backdrop-filter:var(--lg-blur)}
+.top{box-shadow:inset 0 -1px 0 rgba(255,255,255,.55), 0 1px 0 rgba(48,24,88,.08), 0 8px 24px -16px rgba(48,24,88,.25)}
+.side{border-right:0;box-shadow:inset -1px 0 0 rgba(255,255,255,.6), 1px 0 0 rgba(48,24,88,.07)}
+.toolbar{border:1px solid var(--lg-borda);box-shadow:var(--lg-rim),var(--lg-sombra);border-radius:20px}
+
+/* cartões e caixas de vidro */
+.status,.login,.ecard,.hist,.contasbox,.ctrbox,.sharebox,.empty,.okpi,.opend,.obem,.sbcli{
+  background:var(--lg-bg);-webkit-backdrop-filter:var(--lg-blur);backdrop-filter:var(--lg-blur);
+  border:1px solid var(--lg-borda);box-shadow:var(--lg-rim),var(--lg-sombra)}
+.ecard,.okpi,.opend,.hist,.contasbox,.ctrbox{border-radius:22px}
+.ecard:hover{box-shadow:var(--lg-rim),0 22px 48px -14px rgba(48,24,88,.30),0 2px 6px rgba(48,24,88,.06)}
+.mk div,.nodata,.ctrcard,.ditem{background:rgba(255,255,255,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),inset 0 0 0 1px rgba(255,255,255,.4)}
+.oic{background:rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),inset 0 0 0 1px rgba(255,255,255,.5),0 4px 12px -6px var(--c)}
+.drop,.addcard,.repdrop{background:rgba(255,255,255,.32);-webkit-backdrop-filter:var(--lg-blur-leve);backdrop-filter:var(--lg-blur-leve);border-color:rgba(255,255,255,.85)}
+.drop:hover,.addcard:hover,.repdrop:hover{background:rgba(255,255,255,.55)}
+.login{border-radius:28px}
+.sbcli{background:rgba(255,255,255,.5)}
+
+/* botões: bolhas de vidro */
+.btn{background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(255,255,255,.5));-webkit-backdrop-filter:var(--lg-blur-leve);backdrop-filter:var(--lg-blur-leve);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,1),inset 0 0 0 1px rgba(255,255,255,.6),0 0 0 .5px rgba(48,24,88,.14),0 4px 12px -6px rgba(48,24,88,.25)}
+.btn:hover{background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.7))}
+.btn.primary{background:linear-gradient(180deg,#a8409b 0%,#902884 55%,#7d1f72 100%);color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45),inset 0 -1px 0 rgba(0,0,0,.12),0 6px 18px -6px rgba(144,40,132,.6)}
+.btn.primary:hover{filter:brightness(1.08) saturate(1.05)}
+.btn.danger.solid{background:linear-gradient(180deg,#ff6259,#ff3b30 60%,#e0322a);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 6px 18px -6px rgba(255,59,48,.55)}
+.pill{background:rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),inset 0 0 0 1px rgba(255,255,255,.5)}
+.sidebtn:hover,.sbh button:hover,.xfech{background:rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.9)}
+
+/* controle segmentado: trilho de vidro e "gota" selecionada */
+.seg{background:rgba(255,255,255,.35);box-shadow:inset 0 1px 2px rgba(48,24,88,.12),inset 0 0 0 1px rgba(255,255,255,.5);border-radius:12px;padding:3px}
+.seg button{border-radius:9px}
+.seg button.on{background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,255,255,.78));
+  box-shadow:inset 0 1px 0 #fff,0 0 0 .5px rgba(48,24,88,.1),0 4px 12px -4px rgba(48,24,88,.28)}
+
+/* campos */
+select,.fld input,.sharebox input,.mbox textarea,.ctab tr.novo input,.ctrh input.nome,.repprazo input,.sbbusca{
+  background-color:rgba(255,255,255,.62);border-color:rgba(255,255,255,.9);
+  box-shadow:inset 0 1px 2px rgba(48,24,88,.08),0 0 0 .5px rgba(48,24,88,.12)}
+.sbbusca{border:0}
+.fld input:focus,.mbox textarea:focus,select:focus,.ctrh input.nome:focus{background-color:rgba(255,255,255,.9);box-shadow:0 0 0 4px var(--ring)}
+
+/* barra lateral: item selecionado vira pílula de vidro */
+.sbi:hover{background:rgba(255,255,255,.38)}
+.sbi.on{background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.62));
+  box-shadow:inset 0 1px 0 #fff,inset 0 0 0 1px rgba(255,255,255,.6),0 4px 12px -6px rgba(48,24,88,.22)}
+.sbfoot{border-top-color:rgba(255,255,255,.55)}
+
+/* janelas e avisos */
+.modal{background:rgba(40,24,70,.18);-webkit-backdrop-filter:blur(6px) saturate(140%);backdrop-filter:blur(6px) saturate(140%)}
+.mbox{background:var(--lg-bg-forte);-webkit-backdrop-filter:blur(30px) saturate(190%);backdrop-filter:blur(30px) saturate(190%);
+  border:1px solid rgba(255,255,255,.75);box-shadow:var(--lg-rim),0 30px 80px -20px rgba(40,20,80,.45)}
+.mbox > .mact{background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.85));border-top-color:rgba(255,255,255,.7)}
+.toast{background:rgba(36,26,51,.72);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2),inset 0 0 0 1px rgba(255,255,255,.1),0 14px 40px -10px rgba(0,0,0,.45)}
+
+/* ---------- relatório: página de vidro, conteúdo em vidro claro ---------- */
+.page{background:var(--lg-bg);-webkit-backdrop-filter:var(--lg-blur);backdrop-filter:var(--lg-blur);
+  border:1px solid var(--lg-borda);box-shadow:var(--lg-rim),var(--lg-sombra);border-radius:28px}
+header.ph{border-bottom-color:rgba(255,255,255,.7);box-shadow:0 1px 0 rgba(48,24,88,.07)}
+.kpi,.card,.eqc,.note,.explica,.dre,.ptab,.cal,.ag{background:var(--lg-bg-claro);border:1px solid rgba(255,255,255,.8);
+  box-shadow:inset 0 1px 0 #fff,var(--lg-sombra-leve)}
+.kpi,.card,.eqc{border-radius:18px}
+.eqc.destaque{background:linear-gradient(160deg,#3a2459,#241a33);border-color:rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 28px -10px rgba(36,26,51,.6)}
+.bar,.mini{background:rgba(48,24,88,.08)}
+th{background:rgba(245,243,250,.92)}
+tr{background:transparent}
+table{background:transparent}
+td:first-child{background:rgba(255,255,255,.86)}
+tr.tot,tr.tot td:first-child{background:rgba(243,240,249,.95)}
+tr.final,tr.final td:first-child{background:#241a33}
+.calh{background:rgba(245,243,250,.9)}
+.cd.fora,.cd.fds,.cd.pass{background:rgba(255,255,255,.35)}
+.cd.clic:hover{background:rgba(255,255,255,.7)}
+.ev2{box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
+
+/* modo TV: páginas mais opacas sobre o fundo escuro */
+body.tv::before{display:none}
+body.tv #report .page.tv-cur{background:rgba(251,250,255,.94)}
+body.tv #tvbar{background:rgba(30,22,48,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+
+/* celular: menos blur (mais leve para a bateria) */
+@media (max-width:600px){
+  :root{ --lg-blur: blur(16px) saturate(175%); }
+  .page{border-radius:22px}
+}
+/* quem pediu menos transparência no sistema recebe superfícies sólidas */
+@media (prefers-reduced-transparency: reduce){
+  body::before{display:none}
+  html{background:#f3f1f8}
+  .top,.side,.toolbar,.status,.login,.ecard,.hist,.contasbox,.ctrbox,.sharebox,.empty,.okpi,.opend,.obem,.page,.mbox,.btn,.sbcli{
+    background:#fff!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+}
+/* impressão / PDF: tudo branco, sem vidro */
+@media print{
+  html,body{background:#fff!important}
+  body::before{display:none}
+  .page,.kpi,.card,.eqc,.note,.explica,.dre,.ptab,.cal{background:#fff!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important}
+  td:first-child,th,tr.tot{background:#fff!important}
+  tr.final,tr.final td:first-child{background:#241a33!important}
+}
+/* Liquid Glass — reforço: fundo mais vivo, vidro mais transparente e borda de luz em degradê */
+:root{
+  --lg-bg: linear-gradient(135deg, rgba(255,255,255,.58) 0%, rgba(255,255,255,.26) 100%);
+  --lg-bg-claro: linear-gradient(160deg, rgba(255,255,255,.80) 0%, rgba(255,255,255,.62) 100%);
+  --lg-aro: linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(255,255,255,.25) 38%, rgba(255,255,255,.12) 62%, rgba(255,255,255,.75) 100%);
+}
+body::before{
+  background:
+    radial-gradient(42% 46% at 6% 2%, rgba(144,40,132,.52), transparent 70%),
+    radial-gradient(40% 44% at 96% 6%, rgba(86,107,175,.55), transparent 70%),
+    radial-gradient(44% 50% at 72% 96%, rgba(181,72,122,.36), transparent 72%),
+    radial-gradient(36% 42% at 14% 90%, rgba(15,124,134,.26), transparent 72%),
+    radial-gradient(30% 30% at 50% 45%, rgba(224,161,0,.10), transparent 70%),
+    linear-gradient(180deg,#efecf8 0%,#e6e2f2 100%);}
+/* borda de luz: o vidro "pega" a luz no canto superior esquerdo */
+.toolbar,.status,.login,.ecard,.hist,.contasbox,.ctrbox,.sharebox,.empty,.okpi,.opend,.obem,.page,.mbox{
+  border:1px solid transparent;background:var(--lg-bg) padding-box, var(--lg-aro) border-box}
+.mbox{background:var(--lg-bg-forte) padding-box, var(--lg-aro) border-box}
+.kpi,.card,.eqc{border:1px solid transparent;background:var(--lg-bg-claro) padding-box, var(--lg-aro) border-box}
+.eqc.destaque{background:linear-gradient(160deg,#3a2459,#241a33) padding-box, linear-gradient(135deg,rgba(255,255,255,.5),rgba(255,255,255,.05)) border-box}
+.side{background:linear-gradient(180deg,rgba(255,255,255,.46),rgba(255,255,255,.28))}
+.top{background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(255,255,255,.38))}
+body.tv #report .page.tv-cur{background:rgba(251,250,255,.94) padding-box, var(--lg-aro) border-box}
+@media (prefers-reduced-transparency: reduce){
+  .toolbar,.status,.login,.ecard,.hist,.contasbox,.ctrbox,.sharebox,.empty,.okpi,.opend,.obem,.page,.mbox,.kpi,.card,.eqc,.side,.top{background:#fff!important;border-color:#e5e3ec!important}
+}
+@media print{ .page,.kpi,.card,.eqc{background:#fff!important;border-color:#ddd!important} }
+/* celular/tablet: 2 indicadores por linha (a regra da barra lateral não vale aqui) */
+@media (max-width:900px){ body.has-side:not(.side-off):not(.tv) .g6, body.has-side.side-off:not(.tv) .g6{grid-template-columns:repeat(2,1fr)} }
+@media (max-width:600px){ .g6 .kpi .v,.g6 .kpi.big .v,.kpi.big .v{font-size:16px;letter-spacing:-.03em} .kpi{padding:12px 12px 11px} }
