@@ -32,6 +32,7 @@
       <a class="sbi" href="#" data-ir="adminrow" data-ic="upload"><span>Planilha e histórico</span></a>
       <a class="sbi" href="#" data-ir="contasBox" data-ic="cal"><span>Contas a pagar</span></a>
       <a class="sbi" href="#" data-ir="contratosBox" data-ic="sign"><span>Contratos</span></a>
+      <a class="sbi" href="#" data-ir="repBox" data-ic="users"><span>Repasses</span></a>
       <a class="sbi" href="#" id="sbLink" data-ic="link"><span>Link do cliente</span></a>
       <div class="sbh"><span>Painel do cliente</span></div>
       <div id="sbPaginas"></div>
@@ -100,6 +101,15 @@
       <div id="ctrLista"></div>
       <small class="hint">Cada linha é uma parcela (data e valor). As parcelas com data passada contam como pagas, e a previsão do cliente se atualiza sozinha.</small>
     </div>
+    <div class="ctrbox" id="repBox" hidden>
+      <div class="cbh"><h3>Repasses a fornecedores</h3><span class="cbs" id="repResumo"></span>
+        <label class="repprazo">Prazo <input id="repPrazo" type="number" min="1" max="60"> dias úteis</label>
+        <input type="file" id="repFile" accept=".xlsx,.xlsb,.xlsm,.xls,.csv" hidden>
+        <button class="btn sm primary" id="bRepImp" type="button">Importar planilha</button></div>
+      <div class="repdrop" id="repDrop"><b>Arraste aqui a planilha de controle de repasses</b><span>Precisa das colunas <b>Valor</b> e <b>Data Solicitado</b>; também lê Status, Repasse (OK), Data do pagamento e Banco. Cada importação substitui a anterior. CPF, agência, conta e PIX dos fornecedores não são enviados.</span></div>
+      <div id="repLista"></div>
+      <small class="hint" id="repInfo">O prazo de pagamento é contado em dias úteis a partir da solicitação (sem fins de semana e feriados nacionais, bancários e da cidade de São Paulo).</small>
+    </div>
     <div class="err" id="err" hidden></div>
     <div class="toolbar" id="tbar" hidden>
       <div class="seg" id="mode"><button data-m="mensal" class="on">Mensal</button><button data-m="trimestral">Trimestral</button><button data-m="anual">Anual</button></div>
@@ -123,6 +133,7 @@
     <small class="hint" id="hSenha">É a senha que o cliente digita para abrir o painel. Anote antes de salvar: por segurança ela não fica visível depois.</small></label>
   <label class="chk"><input type="checkbox" id="iPos" checked><span>Incluir <b>Posição de clientes</b><small>Página com quanto há a receber em cada banco (em aberto + vencido).</small></span></label>
   <label class="chk"><input type="checkbox" id="iContas"><span>Incluir <b>Calendário de contas a pagar</b><small>Você cadastra os boletos (recebedor, valor e data) e o cliente vê um calendário, que também passa no modo TV.</small></span></label>
+  <label class="chk"><input type="checkbox" id="iRepasses"><span>Incluir <b>Repasses a fornecedores</b><small>Para quem paga fornecedores depois de uma solicitação (ex.: brechó com peças consignadas). Você importa a planilha de controle e o painel mostra o que vence, o que atrasou e o prazo real.</small></span></label>
   <label class="chk"><input type="checkbox" id="iContratos"><span>Incluir <b>Contratos</b><small>Parcelas de contratos com previsão de pagamentos. As parcelas também entram no calendário de contas.</small></span></label>
   <div class="fld"><span>Cor do card</span><div class="colors" id="iCor"></div></div>
   <div class="mact">

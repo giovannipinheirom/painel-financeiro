@@ -577,7 +577,7 @@ function calendarioHTML(itens, mes){
     const iso = mes+'-'+String(d).padStart(2,'0'), l = porDia[d]||[];
     const cls = ['cd', iso<hoje?'pass':'', iso===hoje?'hoje':'', (new Date(a,m-1,d).getDay()%6===0)?'fds':''].join(' ');
     cels += `<div class="${cls}"><div class="cdh"><span class="dn">${d}</span>${l.length?`<span class="dt">${curto(soma(l))}</span>`:''}</div>`
-      + l.slice(0,MAXC).map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':''}" title="${esc(x.recebedor)} · ${brl(x.valor)}"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('')
+      + l.slice(0,MAXC).map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':x.tipo==='repasse'?' rep':''}" title="${esc(x.recebedor)} · ${brl(x.valor)}"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('')
       + (l.length>MAXC?`<div class="mais">+${l.length-MAXC} conta(s) · ${curto(soma(l.slice(MAXC)))}</div>`:'') + '</div>';
   }
   const resto = (7 - (primeiro+nd)%7) % 7;
@@ -585,7 +585,7 @@ function calendarioHTML(itens, mes){
   const agenda = Object.keys(porDia).map(Number).sort((x,y)=>x-y).map(d=>{
     const iso = mes+'-'+String(d).padStart(2,'0'), l = porDia[d];
     return `<div class="ag ${iso<hoje?'pass':''} ${iso===hoje?'hoje':''}"><div class="agd"><b>${d}</b><span>${DIAS_SEM[new Date(a,m-1,d).getDay()]}</span></div><div class="agl">`
-      + l.map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':''}"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('') + '</div></div>';
+      + l.map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':x.tipo==='repasse'?' rep':''}"><b>${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('') + '</div></div>';
   }).join('') || '<div class="nodata">Nenhuma conta neste mês.</div>';
   const n = (REPORT_EL ? REPORT_EL.querySelectorAll('.page:not(.cal-page)').length : 0) + 1;
   return `<section class="page cal-page">${header(`Contas a pagar — ${nomeMes(mes)}`, 'Vencimentos do mês · boletos cadastrados pelo consultor')}
@@ -732,6 +732,7 @@ function iconeDaPagina(t){
   if(/carteira|saidas/.test(n)) return ICON.pie;
   if(/caixa|banco/.test(n)) return ICON.bank;
   if(/aplica/.test(n)) return ICON.coin;
+  if(/repasse|fornecedor/.test(n)) return ICON.upload;
   if(/posicao|clientes/.test(n)) return ICON.users;
   if(/contrato/.test(n)) return ICON.sign;
   if(/contas a pagar|calend/.test(n)) return ICON.cal;
@@ -778,4 +779,154 @@ function prepararLateral(){
   document.querySelectorAll('[data-ic]').forEach(el=>{ const i=ICON[el.dataset.ic]; if(i) el.insertAdjacentHTML('afterbegin', i); });
   const b = $('bSide'); if(b) b.onclick = alternarLateral;
   const v = $('sideVeu'); if(v) v.onclick = fecharLateralMobile;
+}
+
+/* =====================================================================
+   9. REPASSES A FORNECEDORES (ex.: brechó que paga quem consignou as peças)
+   Prazo contado em dias úteis a partir da data da solicitação.
+   ===================================================================== */
+// feriados em que banco não abre: nacionais, bancários (carnaval, sexta-feira santa, Corpus Christi) e da cidade de São Paulo
+const FERIADOS = {};
+function feriados(ano){
+  if(FERIADOS[ano]) return FERIADOS[ano];
+  const a=ano%19, b=Math.floor(ano/100), c=ano%100, d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25), g=Math.floor((b-f+1)/3),
+    h=(19*a+b-d-g+15)%30, i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7, m=Math.floor((a+11*h+22*l)/451),
+    mes=Math.floor((h+l-7*m+114)/31), dia=((h+l-7*m+114)%31)+1;
+  const pascoa = Date.UTC(ano, mes-1, dia), rel = n => new Date(pascoa + n*864e5).toISOString().slice(0,10);
+  const fixos = ['01-01','01-25','04-21','05-01','07-09','09-07','10-12','11-02','11-15','11-20','12-25'];
+  return FERIADOS[ano] = new Set([...fixos.map(x=>ano+'-'+x), rel(-48), rel(-47), rel(-2), rel(60)]);
+}
+const diaUtil = iso => { const w=new Date(iso+'T12:00:00Z').getUTCDay(); return w!==0 && w!==6 && !feriados(+iso.slice(0,4)).has(iso); };
+const somaDia = (iso, n) => new Date(Date.parse(iso+'T12:00:00Z') + n*864e5).toISOString().slice(0,10);
+function somaDiasUteis(iso, n){ let d=iso, k=0; while(k<n){ d=somaDia(d,1); if(diaUtil(d)) k++; } return d; }
+function diasUteisEntre(a, b){ if(b<a) return -diasUteisEntre(b,a); let n=0, d=a; while(d<b){ d=somaDia(d,1); if(diaUtil(d)) n++; } return n; }
+
+// lê a planilha de controle de repasses (qualquer aba com colunas "Valor" e "Data Solicitado")
+function lerPlanilhaRepasses(wb){
+  const iso = d => d.toISOString().slice(0,10);
+  const serial = n => iso(new Date(Date.UTC(1899,11,30) + Math.round(n)*864e5));
+  const valor = v => { if(typeof v==='number') return v; let t=String(v??'').replace(/[R$\s]/g,''); if(!t) return NaN;
+    if(t.includes(',') && t.includes('.')) t = t.lastIndexOf(',')>t.lastIndexOf('.') ? t.replace(/\./g,'').replace(',','.') : t.replace(/,/g,'');
+    else if(t.includes(',')) t=t.replace(',','.'); else if(/^\d{1,3}(\.\d{3})+$/.test(t)) t=t.replace(/\./g,'');
+    return Number(t); };
+  const dataDe = (v, ref) => {
+    if(v==null || v==='') return null;
+    if(typeof v==='number') return v>20000 && v<80000 ? serial(v) : null;
+    if(v instanceof Date && !isNaN(v)) return iso(new Date(Date.UTC(v.getFullYear(), v.getMonth(), v.getDate())));
+    const m = String(v).match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/); if(!m) return null;
+    const dd=+m[1], mm=+m[2]; if(dd<1||dd>31||mm<1||mm>12) return null;
+    let y = m[3] ? (+m[3]<100 ? 2000+ +m[3] : +m[3]) : (ref ? +ref.slice(0,4) : new Date().getFullYear());
+    let r = `${y}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+    if(!m[3] && ref && r<ref) r = (y+1)+r.slice(4);          // "05/01" pago depois de uma solicitação de dezembro
+    const t = new Date(r+'T12:00:00Z'); return isNaN(t) || t.toISOString().slice(0,10)!==r ? null : r;
+  };
+  for(const nome of wb.SheetNames){
+    const g = XLSX.utils.sheet_to_json(wb.Sheets[nome], {header:1, raw:true, defval:null, blankrows:false});
+    for(let h=0; h<Math.min(g.length,15); h++){
+      const H = (g[h]||[]).map(norm);
+      const col = (...ks) => { for(const k of ks){ const i=H.findIndex(x=>typeof k==='string' ? x===k : k.test(x)); if(i>=0) return i; } return -1; };
+      const cV = col('valor','valor repasse','valor do repasse'), cS = col('data solicitado','data solicitacao','data da solicitacao','solicitado','solicitacao',/solicit/);
+      if(cV<0 || cS<0) continue;
+      const cSt = col('status','situacao'), cOk = col('repasse','pago','repasse feito','feito');
+      const cP = col('data','data pagamento','data do pagamento','pago em','data repasse','data do repasse');
+      const cB = col('banco','banco pagador','pago pelo banco'), cC = col('bb','origem','conta pagadora','loja','canal','empresa');
+      let cF = col('fornecedor','nome','favorecido','beneficiario','cliente','consignante');
+      if(cF<0){ const i0 = H.findIndex(x=>x==='#'||x==='n'||x==='id'); cF = i0>=0 && !H[i0+1] ? i0+1 : 1; }
+      const itens=[]; let ignoradas=0;
+      for(let r=h+1; r<g.length; r++){
+        const row=g[r]||[]; const v=valor(row[cV]); const s=dataDe(row[cS]);
+        if(isNaN(v) || !s){ if(row.some(x=>x!=null && x!=='')) ignoradas++; continue; }
+        const st = norm(cSt>=0 ? row[cSt] : '');
+        const ok = /^(ok|sim|pago|feito|s)$/.test(norm(cOk>=0 ? row[cOk] : '')) || /complet|pago|conclu/.test(st);
+        const b = cB>=0 && row[cB] ? String(row[cB]).trim() : '';
+        const bn = /^ita/.test(norm(b)) ? 'Itaú' : /^inter/.test(norm(b)) ? 'Inter' : b;
+        itens.push({ f:String(row[cF]??'').trim(), v, s, p: cP>=0 ? dataDe(row[cP], s) : null, ok, x:/cancel/.test(st),
+          b: bn || null, c: cC>=0 && row[cC]!=null ? String(row[cC]).trim() || null : null });
+      }
+      if(itens.length) return { aba:nome, itens, ignoradas };
+    }
+  }
+  throw new Error('Não achei a lista de repasses: a planilha precisa de colunas "Valor" e "Data Solicitado".');
+}
+
+function resumoRepasses(rep){
+  const hoje = hojeISO(), prazo = rep && rep.prazo || 10;
+  const itens = (rep && rep.itens || []).filter(i=>!i.x);
+  const pend = itens.filter(i=>!i.ok).map(i=>{ const vence = somaDiasUteis(i.s, prazo);
+    return { ...i, vence, atraso: vence<hoje, dias: diasUteisEntre(hoje, vence), antigo: Date.parse(hoje)-Date.parse(i.s) > 60*864e5 }; })
+    .sort((a,b)=>a.vence.localeCompare(b.vence) || b.v-a.v);
+  const ini90 = somaDia(hoje,-90);
+  const pagos90 = itens.filter(i=>i.ok && i.p && i.s && i.p>=ini90 && i.p>=i.s).map(i=>diasUteisEntre(i.s, i.p));
+  const media = pagos90.length ? pagos90.reduce((t,x)=>t+x,0)/pagos90.length : null;
+  const noPrazo = pagos90.length ? pagos90.filter(x=>x<=prazo).length/pagos90.length : null;
+  // pedidos de mais de 60 dias sem "OK" quase sempre já foram pagos e só não foram marcados: ficam à parte, para conferir
+  const ativos = pend.filter(i=>!i.antigo), antigos = pend.filter(i=>i.antigo);
+  return { hoje, prazo, itens, pend: ativos, antigos, media, noPrazo, nPagos90: pagos90.length };
+}
+const dataRep = iso => iso.slice(0,4)===hojeISO().slice(0,4) ? dataCurta(iso) : dataCurta(iso)+'/'+iso.slice(2,4);
+
+let REP_CHARTS = [];
+function repassesHTML(rep){
+  const R = resumoRepasses(rep), soma = l => l.reduce((t,i)=>t+i.v,0);
+  const atr = R.pend.filter(i=>i.atraso), antigos = R.antigos;
+  const sem7 = somaDia(R.hoje, 7), prox = R.pend.filter(i=>!i.atraso && i.vence<=sem7);
+  const kpis = [
+    ['A pagar', brl(soma(R.pend)), `${R.pend.length} repasse(s) solicitados e ainda não pagos`, C.roxo],
+    ['Atrasados', `<span class="${atr.length?'neg':''}">${brl(soma(atr))}</span>`, atr.length ? `${atr.length} passaram de ${R.prazo} dias úteis` : 'nenhum fora do prazo', C.vencido],
+    ['Vencem em 7 dias', brl(soma(prox)), prox.length ? `${prox.length} repasse(s) até ${dataCurta(sem7)}` : 'nada vence nesta semana', C.aberto],
+    ['Prazo real de pagamento', R.media==null ? '—' : `${R.media.toLocaleString('pt-BR',{maximumFractionDigits:1})} dias úteis`, R.media==null ? 'sem pagamentos nos últimos 90 dias' : `${pct(R.noPrazo,0)} pagos em até ${R.prazo} dias úteis (últimos 90 dias)`, C.pos],
+  ];
+  const sit = i => i.atraso ? `<span class="neg">${-i.dias} dia(s) útil(eis) de atraso</span>` : i.dias===0 ? '<b>vence hoje</b>' : `faltam ${i.dias} dia(s) útil(eis)`;
+  const MAX = 9, lst = R.pend.slice(0, MAX);
+  const linhas = lst.map(i=>`<tr><td>${esc(i.f||'—')}${i.b?`<small class="sub2">${esc(i.b)}${i.c?' · '+esc(i.c):''}</small>`:''}</td><td>${dataRep(i.s)}</td><td>${dataRep(i.vence)}</td><td>${sit(i)}</td><td class="t">${brl(i.v)}</td></tr>`).join('');
+  const atualizado = rep && rep.em ? ` · planilha de ${new Date(rep.em).toLocaleDateString('pt-BR')}` : '';
+  return `<section class="page rep-page">${header('Repasses a fornecedores', `Pagos em até ${R.prazo} dias úteis após a solicitação${atualizado}`)}
+    <div class="grid g4">${kpis.map(([l,v,d,c])=>`<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('')}</div>
+    <div class="grid g2 fill">
+      <div class="card"><h3>Repasses por mês</h3><div class="sub">últimos 12 meses · solicitado (pela data do pedido) × pago (pela data do pagamento)</div><div class="cv"><canvas id="c_repmes"></canvas></div></div>
+      <div class="card"><h3>Previsão de pagamentos</h3><div class="sub">repasses em aberto pelo dia em que vencem${atr.length?' · atrasados em vermelho':''}</div><div class="cv"><canvas id="c_repprev"></canvas></div></div>
+    </div>
+    <div class="card"><h3>Próximos repasses</h3><div class="sub">${R.pend.length ? `os ${lst.length} que vencem primeiro${R.pend.length>MAX?` (de ${R.pend.length})`:''}` : 'nenhum repasse em aberto'}</div>
+      ${R.pend.length ? `<div class="ptab"><table><tr><th>Fornecedor</th><th>Solicitado</th><th>Pagar até</th><th>Situação</th><th>Valor</th></tr>${linhas}</table></div>` : '<div class="nodata">Nenhum repasse em aberto.</div>'}</div>
+    ${antigos.length ? `<div class="note" style="--c:${C.aberto}"><b>${antigos.length} pedido(s) antigo(s) sem "OK" na planilha</b> (${brl(soma(antigos))}), solicitados há mais de 60 dias: ${antigos.slice(0,5).map(i=>`${esc(i.f||'—')} (${dataRep(i.s)})`).join(', ')}${antigos.length>5?' e outros':''}. Provavelmente já foram pagos; confira e marque na planilha. Eles não entram nos totais acima.</div>` : ''}
+    ${footer(0, 0, `Repasses · ${esc(EMP_NOME)}`)}</section>`;
+}
+function anexarRepasses(rep){
+  REP_CHARTS.forEach(c=>c.destroy()); REP_CHARTS=[];
+  if(!REPORT_EL) return;
+  const velho = REPORT_EL.querySelector('.rep-page');
+  if(!rep){ if(velho) velho.remove(); renumerarPaginas(); return; }
+  const div = document.createElement('div'); div.innerHTML = repassesHTML(rep);
+  const novo = div.firstElementChild;
+  if(velho){ if(velho.classList.contains('tv-cur')) novo.classList.add('tv-cur'); velho.replaceWith(novo); }
+  else { const ref = REPORT_EL.querySelector('.ctr-page') || REPORT_EL.querySelector('.cal-page'); ref ? ref.before(novo) : REPORT_EL.append(novo); }
+  renumerarPaginas();
+  if(typeof Chart==='undefined') return;
+  const R = resumoRepasses(rep), mesH = R.hoje.slice(0,7);
+  const meses=[]; for(let x=mesMais(mesH,-11); x<=mesH; x=mesMais(x,1)) meses.push(x);
+  const rot = meses.map(x=>MESES[+x.slice(5)-1]+'/'+x.slice(2,4));
+  const sol = meses.map(x=>R.itens.filter(i=>i.s.startsWith(x)).reduce((t,i)=>t+i.v,0));
+  const pag = meses.map(x=>R.itens.filter(i=>i.ok && i.p && i.p.startsWith(x)).reduce((t,i)=>t+i.v,0));
+  const qtd = meses.map(x=>R.itens.filter(i=>i.s.startsWith(x)).length);
+  const kf = v => (v/1000).toLocaleString('pt-BR',{maximumFractionDigits:0})+'k';
+  REP_CHARTS.push(new Chart(novo.querySelector('#c_repmes'), { type:'bar', data:{ labels:rot, datasets:[
+      { label:'Solicitado', data:sol, backgroundColor:C.roxo }, { label:'Pago', data:pag, backgroundColor:C.pos } ]},
+    options:{ maintainAspectRatio:false, animation:false, plugins:{ legend:{position:'bottom'}, tooltip:{ callbacks:{ label:it=>`${it.dataset.label}: ${brl(it.parsed.y)}`, afterBody:it=>`${qtd[it[0].dataIndex]} pedido(s) no mês` } } },
+      scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, ticks:{callback:kf}} } } }));
+  // previsão: atrasados numa barra só + próximos dias úteis
+  const dias=[]; for(let d=R.hoje; dias.length<12; d=somaDia(d,1)) if(diaUtil(d)) dias.push(d);
+  const atr = R.pend.filter(i=>i.atraso);
+  const lbl = (atr.length?['Atrasados']:[]).concat(dias.map(dataCurta));
+  const val = (atr.length?[atr.reduce((t,i)=>t+i.v,0)]:[]).concat(dias.map(d=>R.pend.filter(i=>i.vence===d).reduce((t,i)=>t+i.v,0)));
+  REP_CHARTS.push(new Chart(novo.querySelector('#c_repprev'), { type:'bar', data:{ labels:lbl, datasets:[
+      { label:'A pagar', data:val, backgroundColor: lbl.map(l=>l==='Atrasados'?C.vencido:C.aberto) } ]},
+    options:{ maintainAspectRatio:false, animation:false, plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:it=>brl(it.parsed.y) } } },
+      scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, ticks:{callback:kf}} } } }));
+}
+// repasses em aberto viram um item por dia no calendário de contas a pagar
+function repassesNoCalendario(rep, mes){
+  if(!rep || !mes) return [];
+  const por = {};
+  for(const i of resumoRepasses(rep).pend){ if(!i.vence.startsWith(mes)) continue; (por[i.vence] = por[i.vence] || []).push(i); }
+  return Object.entries(por).map(([d,l])=>({ id:'rep-'+d, recebedor:`Repasses a fornecedores (${l.length})`, valor:l.reduce((t,i)=>t+i.v,0), vencimento:d, tipo:'repasse' }));
 }

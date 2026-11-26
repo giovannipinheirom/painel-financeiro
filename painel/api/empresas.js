@@ -18,6 +18,7 @@ const campos = b => {
     posicao: b.posicao !== false,
     contas: b.contas === true,
     contratos: b.contratos === true,
+    repasses: b.repasses === true,
     senhaHash: senha ? hashSenha(senha) : null,
   };
 };
@@ -26,6 +27,7 @@ async function buscar(sql, id) {
   const linhas = await sql`
     select e.id, e.nome, e.cnpj, e.contato, e.cor, e.token, e.criado_em,
            e.senha_hash is not null as tem_senha, e.senha_em, e.posicao_clientes, e.contas_pagar, e.contratos,
+           e.repasses, e.repasse_prazo, e.repasses_em,
            r.id as rel_id, r.arquivo, r.enviado_em, r.resumo
       from empresas e
       left join lateral (
@@ -37,6 +39,7 @@ async function buscar(sql, id) {
   return linhas.map(l => ({
     id: l.id, nome: l.nome, cnpj: l.cnpj, contato: l.contato, cor: l.cor, token: l.token, criadoEm: l.criado_em,
     temSenha: l.tem_senha, senhaEm: l.senha_em, posicao: l.posicao_clientes, contas: l.contas_pagar, contratos: l.contratos,
+    repasses: l.repasses, repassePrazo: l.repasse_prazo, repassesEm: l.repasses_em,
     ultimo: l.rel_id ? { relId: l.rel_id, arquivo: l.arquivo, enviadoEm: l.enviado_em, ...(l.resumo || {}) } : null,
   }));
 }
@@ -55,8 +58,8 @@ export default rota(async (req, res) => {
   if (req.method === 'POST') {
     const c = campos(corpo(req));
     const novo = novoId(12);
-    await sql`insert into empresas (id, nome, cnpj, contato, cor, token, posicao_clientes, contas_pagar, contratos, senha_hash, senha_em)
-              values (${novo}, ${c.nome}, ${c.cnpj}, ${c.contato}, ${c.cor}, ${novoId(24)}, ${c.posicao}, ${c.contas}, ${c.contratos},
+    await sql`insert into empresas (id, nome, cnpj, contato, cor, token, posicao_clientes, contas_pagar, contratos, repasses, senha_hash, senha_em)
+              values (${novo}, ${c.nome}, ${c.cnpj}, ${c.contato}, ${c.cor}, ${novoId(24)}, ${c.posicao}, ${c.contas}, ${c.contratos}, ${c.repasses},
                       ${c.senhaHash}, ${c.senhaHash ? sql`now()` : null})`;
     return res.status(201).json((await buscar(sql, novo))[0]);
   }
@@ -70,9 +73,9 @@ export default rota(async (req, res) => {
       const c = campos(b);
       r = c.senhaHash
         ? await sql`update empresas set nome=${c.nome}, cnpj=${c.cnpj}, contato=${c.contato}, cor=${c.cor},
-                    posicao_clientes=${c.posicao}, contas_pagar=${c.contas}, contratos=${c.contratos}, senha_hash=${c.senhaHash}, senha_em=now() where id=${id}`
+                    posicao_clientes=${c.posicao}, contas_pagar=${c.contas}, contratos=${c.contratos}, repasses=${c.repasses}, senha_hash=${c.senhaHash}, senha_em=now() where id=${id}`
         : await sql`update empresas set nome=${c.nome}, cnpj=${c.cnpj}, contato=${c.contato}, cor=${c.cor},
-                    posicao_clientes=${c.posicao}, contas_pagar=${c.contas}, contratos=${c.contratos} where id=${id}`;
+                    posicao_clientes=${c.posicao}, contas_pagar=${c.contas}, contratos=${c.contratos}, repasses=${c.repasses} where id=${id}`;
     }
     if (!r.count) throw new HttpError(404, 'Empresa não encontrada.');
     return res.json((await buscar(sql, id))[0]);

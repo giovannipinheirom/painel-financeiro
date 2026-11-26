@@ -2,7 +2,7 @@
 // GET    ?token=&rel=   dados do painel (precisa estar logado como cliente)
 // POST   {token, senha} entra e devolve os dados
 // DELETE ?token=        sai
-import { rota, db, corpo, HttpError, contratosDaEmpresa, confereSenha, abrirSessaoCliente, fecharSessaoCliente, clienteLogado } from './_lib.js';
+import { rota, db, corpo, HttpError, contratosDaEmpresa, repassesDaEmpresa, confereSenha, abrirSessaoCliente, fecharSessaoCliente, clienteLogado } from './_lib.js';
 
 const TOKEN_OK = /^[a-z0-9]{24}$/;
 const ID_OK = /^[a-z0-9]{6,40}$/;
@@ -43,6 +43,7 @@ async function dados(sql, e, rel, mes) {
   return {
     empresa: { nome: e.nome, cnpj: e.cnpj, posicao: e.posicao_clientes },
     contas: await contasDoMes(sql, e, mes),
+    repasses: e.repasses ? await repassesDaEmpresa(sql, e) : null,
     contratos: e.contratos ? (await contratosDaEmpresa(sql, e.id)).map(c => ({ nome: c.nome, parcelas: c.parcelas.map(p => ({ vencimento: p.vencimento, valor: p.valor })) })) : null,
     versoes: versoes.map(v => ({ id: v.id, arquivo: v.arquivo, enviadoEm: v.enviado_em, ano: v.ano, ultimo: v.ultimo })),
     relatorio,
@@ -61,7 +62,7 @@ export default rota(async (req, res) => {
   if (rel != null && !ID_OK.test(rel)) throw new HttpError(400, 'Versão inválida.');
 
   const sql = await db();
-  const [e] = await sql`select id, nome, cnpj, senha_hash, posicao_clientes, contas_pagar, contratos from empresas where token = ${token}`;
+  const [e] = await sql`select id, nome, cnpj, senha_hash, posicao_clientes, contas_pagar, contratos, repasses, repasse_prazo, repasses_em, repasses_arquivo from empresas where token = ${token}`;
   if (!e) throw new HttpError(404, 'Este link não está mais ativo. Peça um novo ao seu consultor.');
   const nome = { empresa: { nome: e.nome } };
 

@@ -88,7 +88,7 @@ function abrirForm(emp){
   editId = emp? emp.id : null;
   $('mEmpT').textContent = emp? 'Editar empresa' : 'Nova empresa';
   $('iNome').value=emp?.nome||''; $('iCnpj').value=emp?.cnpj||''; $('iCont').value=emp?.contato||'';
-  $('iSenhaCli').value=''; $('iPos').checked = emp ? emp.posicao!==false : true; $('iContas').checked = !!(emp && emp.contas); $('iContratos').checked = !!(emp && emp.contratos);
+  $('iSenhaCli').value=''; $('iPos').checked = emp ? emp.posicao!==false : true; $('iContas').checked = !!(emp && emp.contas); $('iContratos').checked = !!(emp && emp.contratos); $('iRepasses').checked = !!(emp && emp.repasses);
   const precisa = !emp || !emp.temSenha;
   $('lSenha').textContent = precisa ? 'Senha do cliente *' : 'Nova senha do cliente';
   $('iSenhaCli').placeholder = precisa ? 'mín. 4 caracteres' : 'deixe em branco para manter a atual';
@@ -110,7 +110,7 @@ const senhasNovas = new Map(); // senha recém-definida, só nesta aba, para cop
 $('fEmp').onsubmit = async ev => {
   ev.preventDefault();
   const body={ nome:$('iNome').value.trim(), cnpj:$('iCnpj').value.trim(), contato:$('iCont').value.trim(), cor:corSel,
-    posicao:$('iPos').checked, contas:$('iContas').checked, contratos:$('iContratos').checked, senha:$('iSenhaCli').value.trim() };
+    posicao:$('iPos').checked, contas:$('iContas').checked, contratos:$('iContratos').checked, repasses:$('iRepasses').checked, senha:$('iSenhaCli').value.trim() };
   if(!body.nome) return;
   if(body.senha && body.senha.length<4) return toast('A senha precisa ter pelo menos 4 caracteres.');
   $('bSave').disabled=true;
@@ -118,7 +118,7 @@ $('fEmp').onsubmit = async ev => {
     if(editId){
       st.emp = await api('empresas?id='+editId,{method:'PUT', body});
       if(body.senha) senhasNovas.set(editId, body.senha);
-      st.rendered=null; cabecalho(); await carregarContas(); await carregarContratos(); escolherVersao(); toast(body.senha?'Empresa atualizada. Senha nova ativa.':'Empresa atualizada');
+      st.rendered=null; cabecalho(); await carregarContas(); await carregarContratos(); await carregarRepasses(); escolherVersao(); toast(body.senha?'Empresa atualizada. Senha nova ativa.':'Empresa atualizada');
     } else {
       const e = await api('empresas',{method:'POST', body}); if(body.senha) senhasNovas.set(e.id, body.senha);
       location.hash='e-'+e.id; toast('Empresa cadastrada. Agora arraste a planilha.');
@@ -137,7 +137,7 @@ $('bDelEmp').onclick = async () => {
 
 /* ---------- página da empresa ---------- */
 function fecharEmpresa(){
-  st.seq++; Object.assign(st,{emp:null, rels:[], relId:null, model:null, rendered:null, contas:[], contratos:[], calMes:mesAtual()});
+  st.seq++; Object.assign(st,{emp:null, rels:[], relId:null, model:null, rendered:null, contas:[], contratos:[], rep:null, calMes:mesAtual()});
   charts.forEach(c=>c.destroy()); charts=[]; REPORT_EL.innerHTML=''; $('shareBox').hidden=true; showErr('');
   desenharLateral();
 }
@@ -148,7 +148,7 @@ async function abrirEmpresa(id){
   setEmpty('Carregando painel…',''); $('histList').innerHTML='<li class="none">Carregando…</li>';
   try{
     const emp = await api('empresas?id='+id); if(seq!==st.seq) return;
-    st.emp=emp; cabecalho(); await carregarContas(); await carregarContratos(); await carregarHistorico();
+    st.emp=emp; cabecalho(); await carregarContas(); await carregarContratos(); await carregarRepasses(); await carregarHistorico();
   }catch(e){
     if(seq!==st.seq || e.silent) return;
     $('eNome').textContent='Empresa não encontrada'; setEmpty('Não consegui abrir esta empresa', e.message); $('histList').innerHTML='';
@@ -160,9 +160,10 @@ function cabecalho(){
   $('eMeta').textContent=[e.cnpj, e.contato, e.ultimo?'atualizado em '+dataBR(e.ultimo.enviadoEm):null].filter(Boolean).join(' · ');
   if(!e.temSenha){ const w=document.createElement('span'); w.className='warn'; w.textContent='sem senha: o cliente não consegue abrir'; $('eMeta').append(' ', w); }
   REPORT_OPTS.posicao = e.posicao!==false;
-  REPORT_OPTS.extra = (e.contas ? 1 : 0) + (e.contratos ? 1 : 0);
+  REPORT_OPTS.extra = (e.contas ? 1 : 0) + (e.contratos ? 1 : 0) + (e.repasses ? 1 : 0);
   $('contasBox').hidden = !e.contas;
   $('contratosBox').hidden = !e.contratos;
+  $('repBox').hidden = !e.repasses;
   desenharLateral();
   document.title=e.nome+' · Evolução Financeira';
   if(!$('shareBox').hidden) preencherShare();
@@ -377,9 +378,10 @@ function desenharCalendario(){
   if(!st.emp) return;
   const velho = REPORT_EL.querySelector('.cal-page');
   if(!st.emp.contas){ if(velho) velho.remove(); return; }
-  anexarCalendario(st.contas.concat(st.emp.contratos ? parcelasNoCalendario(st.contratos) : []), st.calMes || mesAtual());
+  const mesCal = st.calMes || mesAtual();
+  anexarCalendario(st.contas.concat(st.emp.contratos ? parcelasNoCalendario(st.contratos) : [], st.emp.repasses ? repassesNoCalendario(st.rep, mesCal) : []), mesCal);
 }
-function desenharExtras(){ anexarContratos(st.emp && st.emp.contratos ? st.contratos : null); desenharCalendario(); }
+function desenharExtras(){ anexarRepasses(st.emp && st.emp.repasses ? st.rep : null); anexarContratos(st.emp && st.emp.contratos ? st.contratos : null); desenharCalendario(); }
 REPORT_EL.addEventListener('click', e => {
   const b = e.target.closest('[data-cal]'); if(!b) return;
   const d = +b.dataset.cal; st.calMes = d===0 ? mesAtual() : mesMais(st.calMes||mesAtual(), d); desenharCalendario();
@@ -524,6 +526,7 @@ function desenharLateral(){
     $('sbEmpNome').textContent = st.emp.nome;
     document.querySelector('[data-ir="contasBox"]').hidden = !st.emp.contas;
     document.querySelector('[data-ir="contratosBox"]').hidden = !st.emp.contratos;
+    document.querySelector('[data-ir="repBox"]').hidden = !st.emp.repasses;
   }
 }
 
@@ -555,3 +558,58 @@ function desenharVisao(){
         : `<div class="ook">${ICON.check}<span>Todas as empresas têm senha e planilha recente.</span></div>`}
     </div>`;
 }
+
+
+/* ---------- repasses a fornecedores ---------- */
+async function carregarRepasses(){
+  st.rep = null;
+  if(st.emp && st.emp.repasses){ try{ st.rep = await api('repasses?empresa='+st.emp.id); }catch(e){ falha(e); } }
+  desenharRepasses();
+}
+function desenharRepasses(){
+  if(!st.emp || !st.emp.repasses) return;
+  const rep = st.rep || { prazo: st.emp.repassePrazo || 10, itens: [] };
+  $('repPrazo').value = rep.prazo;
+  const R = resumoRepasses(rep), soma = l => l.reduce((t,i)=>t+i.v,0), atr = R.pend.filter(i=>i.atraso);
+  $('repResumo').textContent = rep.itens.length
+    ? `${R.pend.length} em aberto · ${curto(soma(R.pend))}${atr.length ? ` · ${atr.length} atrasado(s)` : ''}${R.antigos.length ? ` · ${R.antigos.length} antigo(s) para conferir` : ''}`
+    : 'nenhuma planilha importada';
+  $('repDrop').classList.toggle('mini', !!rep.itens.length);
+  const MAX = 15;
+  $('repLista').innerHTML = !rep.itens.length ? '' : `<div class="cscroll"><table class="ctab rept">
+      <thead><tr><th>Fornecedor</th><th>Banco</th><th class="cd2">Solicitado</th><th class="cd2">Pagar até</th><th>Situação</th><th class="cv2">Valor (R$)</th></tr></thead><tbody>
+      ${R.pend.slice(0,MAX).map(i=>`<tr class="${i.atraso?'erro':''}"><td>${esc(i.f||'—')}</td><td>${esc(i.b||'—')}</td><td>${dataRep(i.s)}</td><td>${dataRep(i.vence)}</td>
+        <td>${i.atraso ? `<span class="neg">${-i.dias} dia(s) útil(eis) de atraso</span>` : i.dias===0 ? 'vence hoje' : `faltam ${i.dias} dia(s) útil(eis)`}</td><td>${brl2(i.v)}</td></tr>`).join('')
+        || '<tr><td colspan="6">Nenhum repasse em aberto.</td></tr>'}
+      ${R.antigos.length ? `<tr class="grupo"><td colspan="6">Antigos sem "OK" na planilha (mais de 60 dias): provavelmente já pagos, confira</td></tr>`
+        + R.antigos.map(i=>`<tr class="pass"><td>${esc(i.f||'—')}</td><td>${esc(i.b||'—')}</td><td>${dataRep(i.s)}</td><td>${dataRep(i.vence)}</td><td>fora dos totais</td><td>${brl2(i.v)}</td></tr>`).join('') : ''}
+      </tbody></table></div>${R.pend.length>MAX ? `<small class="hint">Mostrando os ${MAX} que vencem primeiro, de ${R.pend.length} em aberto.</small>` : ''}`;
+  $('repInfo').textContent = rep.itens.length
+    ? `Última importação: ${rep.arquivo ? rep.arquivo+' · ' : ''}${rep.em ? dataBR(rep.em) : ''} · ${rep.itens.length} repasses dos últimos 13 meses + os em aberto. Prazo contado em dias úteis (sem fins de semana e feriados nacionais, bancários e de São Paulo).`
+    : 'O prazo de pagamento é contado em dias úteis a partir da solicitação (sem fins de semana e feriados nacionais, bancários e da cidade de São Paulo).';
+}
+async function importarRepasses(file){
+  if(!file || !st.emp) return;
+  $('bRepImp').disabled = true; toast('Lendo a planilha de repasses…');
+  try{
+    const wb = XLSX.read(await file.arrayBuffer(), {type:'array'});
+    const r = lerPlanilhaRepasses(wb);
+    st.rep = await api('repasses', {method:'POST', body:{ empresaId: st.emp.id, arquivo: file.name, itens: r.itens }});
+    desenharRepasses(); desenharExtras();
+    toast(`${r.itens.length.toLocaleString('pt-BR')} repasses importados da aba "${r.aba}"${r.ignoradas ? ` (${r.ignoradas} linha(s) sem valor ou data foram ignoradas)` : ''}`);
+  }catch(e){ falha(e); }
+  $('bRepImp').disabled = false; $('repFile').value = '';
+}
+$('bRepImp').onclick = () => $('repFile').click();
+$('repDrop').onclick = () => $('repFile').click();
+$('repFile').onchange = e => importarRepasses(e.target.files[0]);
+['dragover','dragenter'].forEach(t=>$('repBox').addEventListener(t, e=>{ e.preventDefault(); $('repDrop').classList.add('over'); }));
+['dragleave','drop'].forEach(t=>$('repBox').addEventListener(t, e=>{ e.preventDefault(); $('repDrop').classList.remove('over'); }));
+$('repBox').addEventListener('drop', e=>importarRepasses(e.dataTransfer.files[0]));
+$('repPrazo').addEventListener('change', async () => {
+  const prazo = Math.round(+$('repPrazo').value);
+  if(!(prazo>=1 && prazo<=60)) return toast('Prazo entre 1 e 60 dias úteis.');
+  try{ await api('repasses?empresa='+st.emp.id, {method:'PUT', body:{prazo}}); st.emp.repassePrazo = prazo;
+    if(st.rep) st.rep.prazo = prazo; desenharRepasses(); desenharExtras(); toast(`Prazo de repasse: ${prazo} dias úteis`); }
+  catch(e){ falha(e); }
+});

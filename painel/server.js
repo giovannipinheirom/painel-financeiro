@@ -16,7 +16,7 @@ const LIMITE = 20 * 1024 * 1024; // 20 MB por requisição (planilhas grandes)
 
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json', '.webp': 'image/webp' };
-const ROTAS = new Set(['contas', 'contratos', 'empresas', 'login', 'publico', 'relatorios']);
+const ROTAS = new Set(['contas', 'contratos', 'empresas', 'login', 'publico', 'relatorios', 'repasses']);
 const cache = new Map();
 const rota = async nome => { if (!cache.has(nome)) cache.set(nome, (await import(`./api/${nome}.js`)).default); return cache.get(nome); };
 

@@ -66,6 +66,34 @@ async function migrar() {
     valor numeric(14,2) not null
   )`;
   await sql`create index if not exists contrato_parcelas_contrato on contrato_parcelas (contrato_id, vencimento)`;
+  // v5: repasses a fornecedores (ex.: brechó que paga quem consignou as peças)
+  await sql`alter table empresas add column if not exists repasses boolean not null default false`;
+  await sql`alter table empresas add column if not exists repasse_prazo int not null default 10`;
+  await sql`alter table empresas add column if not exists repasses_em timestamptz`;
+  await sql`alter table empresas add column if not exists repasses_arquivo text`;
+  await sql`create table if not exists repasses (
+    id text primary key,
+    empresa_id text not null references empresas(id) on delete cascade,
+    fornecedor text not null,
+    valor numeric(14,2) not null,
+    solicitado date not null,
+    pago boolean not null default false,
+    pago_em date,
+    cancelado boolean not null default false,
+    banco text,
+    conta text
+  )`;
+  await sql`create index if not exists repasses_empresa_sol on repasses (empresa_id, solicitado)`;
+}
+
+// Repasses para o painel: os não pagos (qualquer data) + os dos últimos ~13 meses
+export async function repassesDaEmpresa(sql, e) {
+  const itens = await sql`select fornecedor as f, valor::float8 as v, to_char(solicitado, 'YYYY-MM-DD') as s,
+                                 to_char(pago_em, 'YYYY-MM-DD') as p, pago as ok, cancelado as x, banco as b, conta as c
+                            from repasses where empresa_id = ${e.id}
+                             and (not pago and not cancelado or solicitado >= current_date - 400)
+                           order by solicitado, fornecedor limit 20000`;
+  return { prazo: e.repasse_prazo || 10, em: e.repasses_em, arquivo: e.repasses_arquivo, itens };
 }
 
 // Contratos de uma empresa com todas as parcelas (numeradas: 3 de 12 etc.)

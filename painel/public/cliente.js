@@ -52,7 +52,8 @@ function mostrar(d){
   EMP_NOME = d.empresa.nome; REPORT_OPTS.posicao = d.empresa.posicao!==false;
   cs.contas = d.contas || null; if(cs.contas) cs.calMes = cs.contas.mes;
   cs.contratos = d.contratos || null;
-  REPORT_OPTS.extra = (cs.contas ? 1 : 0) + (cs.contratos ? 1 : 0);
+  cs.repasses = d.repasses || null;
+  REPORT_OPTS.extra = (cs.contas ? 1 : 0) + (cs.contratos ? 1 : 0) + (cs.repasses ? 1 : 0);
   $('tbar').classList.remove('so-cal');
   $('eNome').textContent=d.empresa.nome; $('eAv').textContent=iniciais(d.empresa.nome); $('eAv').style.setProperty('--c','#902884');
   document.title = d.empresa.nome+' · Evolução Financeira';
@@ -60,7 +61,7 @@ function mostrar(d){
   if(!d.relatorio){
     $('eMeta').textContent=d.empresa.cnpj||''; cs.model=null; charts.forEach(c=>c.destroy()); charts=[]; REPORT_EL.innerHTML='';
     setEmpty('O painel financeiro ainda não foi publicado','Assim que o seu consultor enviar a primeira planilha, ela aparece aqui.');
-    if(cs.contas || cs.contratos){ $('tbar').hidden=false; $('tbar').classList.add('so-cal'); anexarContratos(cs.contratos); desenharCalendario(); } else { $('tbar').hidden=true; sairTv(); }
+    if(cs.contas || cs.contratos || cs.repasses){ $('tbar').hidden=false; $('tbar').classList.add('so-cal'); anexarRepasses(cs.repasses); anexarContratos(cs.contratos); desenharCalendario(); } else { $('tbar').hidden=true; sairTv(); }
     return;
   }
   cs.relId=d.relatorio.id; $('ver').value=cs.relId;
@@ -77,13 +78,14 @@ function redesenhar(){
     if(typeof Chart==='undefined') return setEmpty('Não consegui carregar os gráficos','Recarregue a página.');
     render(cs.model, cs.mode, cs.m);
   }
+  anexarRepasses(cs.repasses);
   anexarContratos(cs.contratos);
   desenharCalendario();
   if(tv.on) tvMostrar(tv.i);
 }
 function desenharCalendario(){
   if(!cs.contas){ const v=REPORT_EL.querySelector('.cal-page'); if(v) v.remove(); return; }
-  anexarCalendario(cs.contas.itens, cs.contas.mes);
+  anexarCalendario(cs.contas.itens.concat(repassesNoCalendario(cs.repasses, cs.contas.mes)), cs.contas.mes);
 }
 async function irParaMes(mes){
   const r = await chamar('GET', '/api/publico?token='+token+'&so=contas&mes='+mes);
