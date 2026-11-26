@@ -965,7 +965,7 @@ body::before{
 .eqc.destaque{background:linear-gradient(160deg,#3a2459,#241a33) padding-box, linear-gradient(135deg,rgba(255,255,255,.5),rgba(255,255,255,.05)) border-box}
 .side{background:linear-gradient(180deg,rgba(255,255,255,.46),rgba(255,255,255,.28))}
 .top{background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(255,255,255,.38))}
-body.tv #report .page.tv-cur{background:rgba(251,250,255,.94) padding-box, var(--lg-aro) border-box}
+body.tv #report .page.tv-cur{background:linear-gradient(rgba(251,250,255,.96),rgba(251,250,255,.96)) padding-box, var(--lg-aro) border-box}
 @media (prefers-reduced-transparency: reduce){
   .toolbar,.status,.login,.ecard,.hist,.contasbox,.ctrbox,.sharebox,.empty,.okpi,.opend,.obem,.page,.mbox,.kpi,.card,.eqc,.side,.top{background:#fff!important;border-color:#e5e3ec!important}
 }
