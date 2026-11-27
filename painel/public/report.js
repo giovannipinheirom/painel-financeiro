@@ -627,7 +627,13 @@ function mesMais(mes, n){ let [a,m]=mes.split('-').map(Number); m+=n; while(m>12
 const nomeMes = mes => { const [a,m]=mes.split('-').map(Number); return MESES_LONGO[m-1][0].toUpperCase()+MESES_LONGO[m-1].slice(1)+' '+a; };
 const dataCurta = iso => iso.slice(8,10)+'/'+iso.slice(5,7);
 
-function calendarioHTML(itens, mes){
+// um evento do calendário (no calendário geral leva o nome e a cor da empresa)
+function evHTML(x){
+  const cls = x.tipo==='contrato' ? ' ctr' : x.tipo==='repasse' ? ' rep' : '';
+  const cor = x.cor ? ` style="border-left-color:${esc(x.cor)}"` : '';
+  return `<div class="ev2${cls}"${cor}>${x.empresa?`<small class="evemp">${esc(x.empresa)}</small>`:''}<b>${x.anexo?'<i class="clip">📎</i>':''}${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`;
+}
+function calendarioHTML(itens, mes, opts={}){
   const [a,m] = mes.split('-').map(Number);
   const hoje = hojeISO();
   const doMes = (itens||[]).filter(x=>x.vencimento.startsWith(mes)).sort((x,y)=>x.vencimento.localeCompare(y.vencimento)||y.valor-x.valor);
@@ -654,7 +660,7 @@ function calendarioHTML(itens, mes){
     const iso = mes+'-'+String(d).padStart(2,'0'), l = porDia[d]||[];
     const cls = ['cd', iso<hoje?'pass':'', iso===hoje?'hoje':'', (new Date(a,m-1,d).getDay()%6===0)?'fds':''].join(' ');
     cels += `<div class="${cls}${l.length?' clic':''}"${l.length?` data-dia="${iso}" role="button" tabindex="0" title="Ver as contas do dia ${d}"`:''}><div class="cdh"><span class="dn">${d}</span>${l.length?`<span class="dt">${curto(soma(l))}</span>`:''}</div>`
-      + l.slice(0,MAXC).map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':x.tipo==='repasse'?' rep':''}"><b>${x.anexo?'<i class="clip">📎</i>':''}${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('')
+      + l.slice(0,MAXC).map(evHTML).join('')
       + (l.length>MAXC?`<div class="mais">+${l.length-MAXC} conta(s) · ${curto(soma(l.slice(MAXC)))}</div>`:'') + '</div>';
   }
   const resto = (7 - (primeiro+nd)%7) % 7;
@@ -662,8 +668,13 @@ function calendarioHTML(itens, mes){
   const agenda = Object.keys(porDia).map(Number).sort((x,y)=>x-y).map(d=>{
     const iso = mes+'-'+String(d).padStart(2,'0'), l = porDia[d];
     return `<div class="ag clic ${iso<hoje?'pass':''} ${iso===hoje?'hoje':''}" data-dia="${iso}" role="button" tabindex="0"><div class="agd"><b>${d}</b><span>${DIAS_SEM[new Date(a,m-1,d).getDay()]}</span></div><div class="agl">`
-      + l.map(x=>`<div class="ev2${x.tipo==='contrato'?' ctr':x.tipo==='repasse'?' rep':''}"><b>${x.anexo?'<i class="clip">📎</i>':''}${esc(x.recebedor)}</b><span>${brl(x.valor)}</span></div>`).join('') + '</div></div>';
+      + l.map(evHTML).join('') + '</div></div>';
   }).join('') || '<div class="nodata">Nenhuma conta neste mês.</div>';
+  const kpiHTML = `<div class="grid g4">${kpis.map(([l,v,d,c])=>`<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('')}</div>`;
+  const navHTML = `<div class="calnav"><button type="button" data-cal="-1" aria-label="Mês anterior">‹</button><b>${nomeMes(mes)}</b><button type="button" data-cal="1" aria-label="Próximo mês">›</button>${ehMesAtual?'':'<button type="button" data-cal="0" class="hojeb">Hoje</button>'}</div>`;
+  if(opts.geral) return `<section class="cal-page cal-geral">${kpiHTML}${navHTML}${opts.legenda||''}
+    <div class="cal"><div class="calh">${DIAS_SEM.map(d=>`<div>${d}</div>`).join('')}</div><div class="calg">${cels}</div></div>
+    <div class="agenda">${agenda}</div></section>`;
   const n = (REPORT_EL ? REPORT_EL.querySelectorAll('.page:not(.cal-page)').length : 0) + 1;
   return `<section class="page cal-page">${header(`Contas a pagar — ${nomeMes(mes)}`, 'Vencimentos do mês · boletos cadastrados pelo consultor')}
     <div class="grid g4">${kpis.map(([l,v,d,c])=>`<div class="kpi big" style="--c:${c}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('')}</div>
@@ -1021,7 +1032,7 @@ function abrirDia(iso){
   const l = CAL_ITENS.filter(x=>x.vencimento===iso).sort((a,b)=>b.valor-a.valor);
   if(!l.length) return;
   const d = new Date(iso+'T12:00:00'), tot = l.reduce((t,x)=>t+x.valor,0);
-  const tipo = x => x.tipo==='contrato' ? 'Parcela de contrato' : x.tipo==='repasse' ? 'Repasses a fornecedores' : x.anexo ? 'Conta · PDF anexado' : 'Conta';
+  const tipo = x => (x.empresa ? esc(x.empresa)+' · ' : '') + (x.tipo==='contrato' ? 'Parcela de contrato' : x.tipo==='repasse' ? 'Repasses a fornecedores' : x.anexo ? 'Conta · PDF anexado' : 'Conta');
   let m = $('mDia');
   if(!m){ m=document.createElement('div'); m.className='modal'; m.id='mDia'; document.body.append(m);
     m.addEventListener('click', e=>{ if(e.target===m || e.target.closest('[data-fechar]')) fecharDia(); });
@@ -1029,7 +1040,7 @@ function abrirDia(iso){
   m.innerHTML = `<div class="mbox diabox" role="dialog" aria-modal="true" aria-label="Contas do dia">
     <div class="diah"><div><h2>${d.getDate()} de ${MESES_LONGO[d.getMonth()]}</h2><p class="s">${DIAS_LONGO[d.getDay()]} · ${l.length} item(ns) · ${brl(tot)}</p></div>
       <button class="xfech" type="button" data-fechar aria-label="Fechar">×</button></div>
-    <div class="dlist">${l.map((x,i)=>`<div class="ditem ${x.tipo||'conta'}"><div class="dinfo"><b>${esc(x.recebedor)}</b><span>${tipo(x)}</span></div><div class="dval">${brl(x.valor)}</div>
+    <div class="dlist">${l.map((x,i)=>`<div class="ditem ${x.tipo||'conta'}"${x.cor?` style="border-left-color:${esc(x.cor)}"`:''}><div class="dinfo"><b>${esc(x.recebedor)}</b><span>${tipo(x)}</span></div><div class="dval">${brl(x.valor)}</div>
       ${x.anexo ? `<div class="dacts"><button class="btn sm primary" type="button" data-ver="${i}">Ver PDF</button><a class="btn sm" href="${ANEXO_URL(x.id)}" target="_blank" rel="noopener">Abrir em nova aba</a></div>` : ''}</div>`).join('')}</div>
     <div class="dview" hidden><div class="dvh"><b></b><button class="btn sm" type="button" data-fecharpdf>Fechar PDF</button></div><iframe title="PDF anexado"></iframe></div>
   </div>`;

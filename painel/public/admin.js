@@ -56,7 +56,7 @@ function iniciar(){
 function rotear(){
   const h=location.hash.slice(1); fecharLateralMobile();
   if(/^e-[a-z0-9]+$/.test(h)) return abrirEmpresa(h.slice(2));
-  fecharEmpresa(); show('home'); carregarEmpresas();
+  fecharEmpresa(); show('home'); carregarEmpresas(); carregarAgenda();
 }
 
 /* ---------- lista de empresas ---------- */
@@ -539,28 +539,29 @@ function desenharLateral(){
 function desenharVisao(){
   const es = st.empresas, hoje = Date.now(), DIAS = 864e5;
   const com = es.filter(e=>e.ultimo && typeof e.ultimo.rb==='number');
-  const emDia = es.filter(e=>e.ultimo && hoje-new Date(e.ultimo.enviadoEm) < 45*DIAS);
+  const hojeIso = hojeISO(), deHoje = e => !!(e.ultimo && isoDe(new Date(e.ultimo.enviadoEm))===hojeIso);
+  const emDia = es.filter(deHoje);
   const rb = com.reduce((t,e)=>t+e.ultimo.rb,0), rl = com.reduce((t,e)=>t+e.ultimo.rl,0);
   const pos = com.filter(e=>e.ultimo.rl>=0).length;
   const pend = [];
   for(const e of es){
     if(!e.temSenha) pend.push([e, 'Sem senha: o cliente ainda não consegue abrir o painel', 'Definir senha']);
     if(!e.ultimo) pend.push([e, 'Nenhuma planilha enviada ainda', 'Enviar planilha']);
-    else if(hoje-new Date(e.ultimo.enviadoEm) >= 45*DIAS) pend.push([e, `Última planilha em ${diaBR(e.ultimo.enviadoEm)}`, 'Atualizar']);
+    else if(!deHoje(e)) pend.push([e, `Planilha de hoje ainda não enviada · última em ${diaBR(e.ultimo.enviadoEm)}`, 'Enviar planilha']);
   }
   const k = (l,v,d,c,ic) => `<div class="okpi" style="--c:${c}"><div class="oic">${ICON[ic]}</div><div class="ol">${l}</div><div class="ov">${v}</div><div class="od">${d}</div></div>`;
   $('cardsSub').textContent = es.length ? `${es.length} cadastrada(s)` : '';
   $('ovw').innerHTML = !es.length ? `<div class="obem"><div class="oic big">${ICON.spark}</div><div><b>Bem-vindo ao painel</b><span>Cadastre a primeira empresa para começar. Depois é só arrastar a planilha do mês e mandar o link para o cliente.</span></div><button class="btn primary" type="button" onclick="abrirForm(null)">+ Cadastrar empresa</button></div>` :
     `<div class="okpis">
       ${k('Empresas', es.length, `${es.filter(e=>e.temSenha).length} com acesso liberado`, '#566BAF', 'users')}
-      ${k('Planilhas em dia', `${emDia.length} de ${es.length}`, 'enviadas nos últimos 45 dias', '#34c759', 'upload')}
+      ${k('Planilhas de hoje', `${emDia.length} de ${es.length}`, emDia.length===es.length ? 'todas as empresas atualizadas hoje' : `faltam ${es.length-emDia.length} empresa(s) · ${dataCurta(hojeIso)}`, '#34c759', 'upload')}
       ${k('Receita somada', com.length? curto(rb) : '—', 'último mês de cada empresa', '#902884', 'chart')}
       ${k('Resultado somado', com.length? `<span class="${rl<0?'neg':''}">${curto(rl)}</span>` : '—', com.length? `${pos} de ${com.length} no positivo` : 'sem planilhas ainda', '#ff9500', 'bars')}
     </div>
     <div class="opend">
       <div class="oph"><h2>${pend.length ? 'Pendências' : 'Tudo em dia'}</h2><span>${pend.length ? pend.length+' item(ns) para resolver' : 'Nenhuma empresa precisa de atenção agora.'}</span></div>
-      ${pend.length ? `<div class="olist">${pend.slice(0,6).map(([e,t,acao])=>`<a class="oitem" href="#e-${esc(e.id)}"><i class="sbav" style="--c:${corDe(e)}">${esc(iniciais(e.nome))}</i><div><b>${esc(e.nome)}</b><span>${esc(t)}</span></div><em>${acao} ›</em></a>`).join('')}</div>`
-        : `<div class="ook">${ICON.check}<span>Todas as empresas têm senha e planilha recente.</span></div>`}
+      ${pend.length ? `<div class="olist">${pend.slice(0,st.verTodasPend ? 999 : 6).map(([e,t,acao])=>`<a class="oitem" href="#e-${esc(e.id)}"><i class="sbav" style="--c:${corDe(e)}">${esc(iniciais(e.nome))}</i><div><b>${esc(e.nome)}</b><span>${esc(t)}</span></div><em>${acao} ›</em></a>`).join('')}</div>${pend.length>6 ? `<button type="button" class="btn sm opmais" onclick="st.verTodasPend=!st.verTodasPend; desenharVisao()">${st.verTodasPend ? 'Mostrar menos' : `Ver todas (${pend.length})`}</button>` : ''}`
+        : `<div class="ook">${ICON.check}<span>Todas as empresas receberam a planilha de hoje (${dataCurta(hojeIso)}) e têm acesso liberado.</span></div>`}
     </div>`;
 }
 
@@ -647,3 +648,43 @@ $('pdfFile').onchange = async e => {
   catch(err){ falha(err); }
   celulaPdf(alvo.td, alvo.c);
 };
+
+
+/* ---------- calendário geral (todas as empresas) ---------- */
+st.agMes = mesAtual(); st.agenda = null; st.agOcultas = new Set();
+async function carregarAgenda(){
+  const pedido = st.agMes;
+  try{ const a = await api('agenda?mes='+pedido); if(pedido!==st.agMes) return; st.agenda = a; }
+  catch(e){ falha(e); }
+  desenharAgenda();
+}
+function itensAgenda(){
+  const a = st.agenda; if(!a) return [];
+  const E = Object.fromEntries(a.empresas.map(e=>[e.id, e]));
+  const marca = (x, e) => ({ ...x, empresa:e.nome, cor:corDe(e), eid:e.id });
+  const out = [];
+  a.contas.forEach(c=>{ const e=E[c.e]; if(e) out.push(marca(c, e)); });
+  a.parcelas.forEach(p=>{ const e=E[p.e]; if(e) out.push(marca(p, e)); });
+  const porEmp = {};
+  a.repasses.forEach(r=>{ (porEmp[r.e] = porEmp[r.e] || []).push({ f:r.f, v:r.v, s:r.s, ok:false, x:false }); });
+  for(const [id, itens] of Object.entries(porEmp)){ const e=E[id]; if(!e) continue;
+    repassesNoCalendario({ prazo:e.prazo, itens }, a.mes).forEach(x=>out.push(marca({ ...x, id:x.id+'-'+id }, e))); }
+  return out;
+}
+function desenharAgenda(){
+  const box = $('calGeral'); if(!box) return;
+  if(!st.agenda){ box.innerHTML=''; return; }
+  const todos = itensAgenda(), vis = todos.filter(x=>!st.agOcultas.has(x.eid));
+  const tot = {}; todos.forEach(x=>{ tot[x.eid] = (tot[x.eid]||0) + x.valor; });
+  const comItens = st.agenda.empresas.filter(e=>tot[e.id]);
+  const legenda = comItens.length ? `<div class="calleg">${comItens.map(e=>`<button type="button" class="chip${st.agOcultas.has(e.id)?' off':''}" data-emp="${esc(e.id)}" title="Mostrar/esconder ${esc(e.nome)}"><i style="background:${corDe(e)}"></i>${esc(e.nome)}<b>${curto(tot[e.id])}</b></button>`).join('')}</div>` : '';
+  box.innerHTML = `<div class="sec2"><h2>Calendário geral</h2><span>pagamentos de todas as empresas: contas, parcelas de contratos e repasses · clique no dia para ver os detalhes e os PDFs</span></div>`
+    + calendarioHTML(vis, st.agenda.mes, { geral:true, legenda });
+  CAL_ITENS = vis;
+}
+$('calGeral').addEventListener('click', e=>{
+  const n = e.target.closest('[data-cal]');
+  if(n){ const d=+n.dataset.cal; st.agMes = d===0 ? mesAtual() : mesMais(st.agMes, d); carregarAgenda(); return; }
+  const c = e.target.closest('[data-emp]');
+  if(c){ const id=c.dataset.emp; st.agOcultas.has(id) ? st.agOcultas.delete(id) : st.agOcultas.add(id); desenharAgenda(); }
+});
