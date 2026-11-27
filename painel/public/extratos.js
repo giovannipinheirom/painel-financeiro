@@ -422,6 +422,8 @@ async function extImportarAgora(files){
   try{
     for(const f of files){
       const x = await extLerArquivo(f), D = st.ext.D, existentes = new Set(D.lanc.map(l=>l.c));
+      if(!D.regras.some(r=>r.b===x.banco) && !await confirmar(`Nenhuma regra do ${extNomeBanco(x.banco)} nesta empresa`,
+        `Esta empresa ainda não tem as regras de classificação do ${extNomeBanco(x.banco)} (elas vêm da planilha de referência). Se importar "${f.name}" agora, tudo entra como "A classificar". O melhor é clicar em "Importar planilha de referência" antes. Importar mesmo assim?`, 'Importar mesmo assim')){ res.push(`${f.name}: não importado`); continue; }
       const novos = x.itens.filter(i=>!existentes.has(i.c)).map(i=>({ c:i.c, b:i.b, d:i.d, p:i.p, v:i.v, m:null }));
       const sal = x.saldos.map(s=>({ ...s, o:'extrato' }));
       let M0 = null, M1 = null; try{ if(D.lanc.length) M0 = extMontarModelo(D); }catch(e){}
