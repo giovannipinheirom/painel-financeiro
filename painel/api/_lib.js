@@ -15,7 +15,7 @@ export class HttpError extends Error {
 
 // Cria as tabelas na primeira chamada (não precisa rodar SQL na mão).
 let pronto = null;
-const VERSAO_BANCO = 7;
+const VERSAO_BANCO = 8;
 async function migrar() {
   try {
     const [v] = await sql`select v from esquema_versao limit 1`;
@@ -121,6 +121,13 @@ async function criarTabelas() {
     empresa_id text not null references empresas(id) on delete cascade,
     banco text not null, nome text not null, classe text, vencimento date, valor numeric(14,2) not null)`;
   await sql`create index if not exists ext_carteira_emp on ext_carteira (empresa_id, banco)`;
+  // v8: log de importações e ajustes (qual importação trouxe cada lançamento)
+  await sql`alter table ext_lanc add column if not exists imp text`;
+  await sql`create table if not exists ext_import (
+    id text primary key, empresa_id text not null references empresas(id) on delete cascade,
+    criado timestamptz not null default now(), tipo text not null, arquivo text, banco text, ini date, fim date,
+    recebidos int, novos int, repetidos int, detalhe jsonb, desfeito boolean not null default false)`;
+  await sql`create index if not exists ext_import_emp on ext_import (empresa_id, criado desc)`;
   // v6: PDF anexado a uma conta a pagar (boleto, nota etc.)
   await sql`create table if not exists conta_anexos (
     conta_id text primary key references contas_pagar(id) on delete cascade,

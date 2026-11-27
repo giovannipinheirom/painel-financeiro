@@ -1033,3 +1033,55 @@ body::before{transform:translateZ(0);will-change:transform}
 .btn.pulsa{animation:pulsa 1.6s ease-in-out infinite}
 @keyframes pulsa{0%,100%{box-shadow:0 6px 18px -6px rgba(144,40,132,.6)}50%{box-shadow:0 0 0 6px rgba(144,40,132,.18),0 6px 18px -6px rgba(144,40,132,.6)}}
 .extt .extcls{width:210px;font:inherit;font-size:13px;padding:6px 8px;border:1px solid #d2d2d7;border-radius:8px;background:rgba(255,255,255,.7)}
+
+/* ===== Planilha embutida ("Excel" da empresa) ===== */
+.xlwin{position:fixed;inset:0;z-index:45;display:flex;flex-direction:column;background:var(--bg,#f5f5f7);color:var(--ink,#1d1d1f)}
+.xlwin[hidden]{display:none}
+body.xl-aberta{overflow:hidden}
+.xltop{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(0,0,0,.1);background:rgba(255,255,255,.85);backdrop-filter:blur(20px);flex-wrap:wrap}
+.xltit{flex:1;min-width:180px;display:flex;flex-direction:column;line-height:1.2}
+.xltit span{font-size:12px;opacity:.6}
+#xlBusca{width:220px;max-width:100%;padding:7px 10px;border-radius:9px;border:1px solid rgba(0,0,0,.15);font:inherit;font-size:13px;background:#fff}
+.xlnovo{font-size:12.5px;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.xfech{border:0;background:rgba(0,0,0,.06);width:32px;height:32px;border-radius:50%;font-size:20px;cursor:pointer;color:inherit}
+.xlbody{flex:1;min-height:0;display:flex;flex-direction:column;background:#fff}
+.xgscroll{flex:1;min-height:0;overflow:auto;position:relative}
+table.xg{border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:12.5px;font-variant-numeric:tabular-nums;width:max-content}
+.xg td,.xg th{height:26px;padding:0 7px;border-right:1px solid #e3e3e6;border-bottom:1px solid #e3e3e6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+.xg thead th{position:sticky;background:#f1f1f3;z-index:2;font-weight:600;text-align:left}
+.xg thead .xgl th{top:0;text-align:center;color:#8a8a8e;font-weight:500;font-size:11px}
+.xg thead .xgn th{top:26px;color:#1d1d1f}
+.xg tbody th,.xg thead th:first-child{position:sticky;left:0;background:#f1f1f3;color:#8a8a8e;font-weight:500;text-align:center;font-size:11px;z-index:1}
+.xg thead th:first-child{z-index:3}
+.xg td,.xlmini td,.xlmini th{text-align:left}
+.xg .n,.xg th.n{text-align:right}
+.xg .neg{color:#c4271b}
+.xg tr.novo td{background:#fff6c7}
+.xg tr.alerta td{color:#b25b00;background:#fff1e3}
+.xg tr.dre-total td,.xg tr.dre-result td{font-weight:700;background:#f6f6f8}
+.xg tbody tr:hover td{background:#eef4ff}
+.xlvazio{padding:14px;color:#8a8a8e;text-align:center}
+.xlstatus{padding:5px 14px;font-size:12px;color:#6e6e73;background:#f6f6f8;border-top:1px solid #e3e3e6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xltabs{display:flex;gap:2px;padding:0 8px 6px;background:#f1f1f3;overflow-x:auto;flex-shrink:0}
+.xltab{border:0;background:transparent;padding:7px 14px;font:inherit;font-size:12.5px;border-radius:0 0 8px 8px;cursor:pointer;color:#515154;white-space:nowrap}
+.xltab.on{background:#fff;color:#1a7f37;font-weight:600;box-shadow:0 2px 0 #1a7f37 inset}
+.xllog{flex:1;min-height:0;display:flex;flex-direction:column}
+.xglog{flex:1;min-height:180px;display:flex;flex-direction:column}
+.xglog tbody tr{cursor:pointer}
+.xldet{padding:14px 16px;border-bottom:1px solid #e3e3e6;max-height:58%;overflow:auto;background:#fbfbfd}
+.xldh{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
+.xldm{font-size:12.5px;color:#6e6e73;margin-top:3px}
+.xldacts{display:flex;gap:8px;flex-wrap:wrap}
+.xltag{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:#e8f0fe;color:#1a56db}
+.xltag.planilha{background:#e6f4ea;color:#1a7f37}.xltag.ajuste{background:#f1f1f3;color:#515154}.xltag.desfeito{background:#fde8e8;color:#c4271b}
+.xlnums{display:flex;gap:24px;margin:12px 0;flex-wrap:wrap}
+.xlnums b{font-size:22px;display:block}.xlnums span{font-size:12px;color:#6e6e73}
+.xlnums .pos,.xlmini .pos{color:#1a7f37}
+.xlcols{display:grid;grid-template-columns:1fr 1.3fr;gap:20px}
+.xlcols h4{margin:0 0 6px;font-size:13px}
+table.xlmini{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+.xlmini th{text-align:left;font-weight:600;color:#6e6e73;border-bottom:1px solid #e3e3e6;padding:4px 6px}
+.xlmini td{padding:4px 6px;border-bottom:1px solid #f0f0f2}
+.xlmini .n,.xlmini td.n{text-align:right;white-space:nowrap}.xlmini .neg{color:#c4271b}
+.xlmini tr.alerta td{color:#b25b00}
+@media (max-width:760px){.xlcols{grid-template-columns:1fr}.xldet{max-height:65%}#xlBusca{width:100%}.xltop{gap:8px}}

@@ -82,9 +82,11 @@ const EXT_LEITORES = {
       const desconhecido = x => !x || norm(x)==='desconhecido';
       const nome = norm(r[iM])==='debito' ? (desconhecido(r[iDe]) ? r[iO] : r[iDe]) : r[iO];
       itens.push({ d, p:[r[iT], r[iSit], nome], v });
-      const hora = String(r[iD]).match(/(\d{1,2}):(\d{2})/); const t = hora ? +hora[1]*60 + +hora[2] : 0, s = extNum(r[iS]);
-      if(!isNaN(s) && (!ult[d] || t >= ult[d].t)) ult[d] = { t, s }; }
-    return { banco:'stone', itens, saldos:Object.entries(ult).map(([d,x])=>({ conta:'stone', d, s:x.s })) };
+      const s = extNum(r[iS]); if(!isNaN(s)) (ult[d] = ult[d] || []).push({ s, a: s - v }); }
+    // saldo do fim do dia: o "saldo depois" que não é o "saldo antes" de nenhum outro lançamento do dia (vários no mesmo minuto)
+    const fimDia = l => { const k = x => Math.round(x*100); const usados = new Map(); l.forEach(x=>usados.set(k(x.a), (usados.get(k(x.a))||0)+1));
+      return (l.find(x=>{ const n = usados.get(k(x.s))||0; if(n){ usados.set(k(x.s), n-1); return false; } return true; }) || l[0]).s; };
+    return { banco:'stone', itens, saldos:Object.entries(ult).map(([d,l])=>({ conta:'stone', d, s:fimDia(l) })) };
   },
   sicredi(g){ const h = extCabecalho(g,'data','descricao','documento','valor','saldo'); if(!h) return null;
     const iD=h.i('data'), iDs=h.i('descricao'), iV=h.ini('valor'), iS=h.ini('saldo');
@@ -128,7 +130,8 @@ function extPadrao(p){ let r = EXT_RX.get(p);
   if(!r){ r = new RegExp(String(p).split('').map(ch => ch==='*' ? '[\\s\\S]*' : ch==='?' ? '[\\s\\S]' : ch.replace(/[.+^${}()|[\]\\]/g,'\\$&')).join(''), 'i'); EXT_RX.set(p, r); }
   return r; }
 const extTextoRegra = l => l.p + ' | ' + (l.v < 0 ? 'SAÍDA' : 'ENTRADA');
-function extPelaRegra(l, regras){ const t = extTextoRegra(l); for(const r of regras) if(extPadrao(r.p).test(t)) return r.c; return null; }
+function extRegraQuePega(l, regras){ const t = extTextoRegra(l); for(const r of regras) if(extPadrao(r.p).test(t)) return r; return null; }
+function extPelaRegra(l, regras){ const r = extRegraQuePega(l, regras); return r ? r.c : null; }
 const extChaveClasse = c => extLimpa(c).toUpperCase();
 
 /* ---------- importar a planilha de conciliação (regras, de-para, histórico, saldos, faturamento) ---------- */
@@ -206,7 +209,7 @@ function extProcessar(D){
   const regras = {}; for(const r of D.regras) (regras[r.b] = regras[r.b] || []).push(r);
   Object.values(regras).forEach(l=>l.sort((a,b)=>a.o-b.o));
   const dp = new Map(D.depara.map(x=>[extChaveClasse(x.c), x.k]));
-  for(const l of D.lanc){ l.cls = l.m || extPelaRegra(l, regras[l.b]||[]); l.cat = l.cls ? dp.get(extChaveClasse(l.cls)) : undefined; }
+  for(const l of D.lanc){ l.reg = l.m ? null : extRegraQuePega(l, regras[l.b]||[]); l.cls = l.m || (l.reg ? l.reg.c : null); l.cat = l.cls ? dp.get(extChaveClasse(l.cls)) : undefined; }
   const pend = D.lanc.filter(l=>!l.cls);
   const semCat = {}; for(const l of D.lanc) if(l.cls && l.cat===undefined){ const k=extChaveClasse(l.cls); (semCat[k] = semCat[k] || { classe:l.cls, n:0, total:0 }); semCat[k].n++; semCat[k].total += l.v; }
   return { regras, dp, pend, semCat:Object.values(semCat) };
@@ -286,7 +289,7 @@ async function carregarExtratos(){
   st.ext = null;
   if(!st.emp || !st.emp.extratos){ $('extBox').hidden = true; return; }
   $('extBox').hidden = false;
-  try{ const d = await extApi(''); st.ext = { D:{ lanc:d.lanc, regras:d.regras, depara:d.depara, saldos:d.saldos, meses:d.meses, carteira:d.carteira } }; }
+  try{ const d = await extApi(''); st.ext = { D:{ lanc:d.lanc, regras:d.regras, depara:d.depara, saldos:d.saldos, meses:d.meses, carteira:d.carteira, imports:d.imports||[] } }; }
   catch(e){ falha(e); }
   desenharExtratos();
 }
@@ -347,7 +350,7 @@ $('extPend').addEventListener('click', async e=>{
       if(!extPadrao(padrao).test(extTextoRegra(l))) throw new Error('Esse texto não aparece no lançamento: a regra não pegaria ele.');
       await extApi('regra', {method:'POST', body:{ b:l.b, p:padrao, c:classe }}); st.ext.D.regras.push({ b:l.b, o:-1e9+st.ext.D.regras.length, p:padrao, c:classe });
       const agora = extProcessar(st.ext.D).pend.length; toast(`Regra criada. ${P0(st.ext.P.pend.length - agora)} lançamento(s) classificados.`); }
-    else { await extApi('manual', {method:'PUT', body:{ chaves:[l.c], classe }}); l.m = classe; toast('Lançamento classificado'); }
+    else { await extApi('manual', {method:'PUT', body:{ chaves:[l.c], classe, texto:`${extNomeBanco(l.b)} ${extDataBR(l.d)} ${l.p} ${brl2(l.v)}` }}); l.m = classe; toast('Lançamento classificado'); }
     extMarcarDesatualizado(); desenharExtratos();
   }catch(err){ falha(err); b.disabled = false; }
 });
@@ -391,17 +394,47 @@ $('bExtCart').onclick = async () => {
 };
 
 // importar extratos (vários arquivos de uma vez)
-async function extImportarArquivos(files){
-  if(!files.length || !st.emp) return;
-  $('extDrop').classList.add('busy'); const res = [];
+// efeito de uma importação: o que entrou (por classificação) e o que mudou no painel (antes → depois)
+const EXT_CONTAS_ROT = { bb:'BB · conta', rende:'BB · aplicação', sic:'Sicredi · conta', aplSic:'Sicredi · aplicação', stone:'Stone', cora:'Cora' };
+function extRotuloConta(k, nb){ nb = nb || {}; const base = { bb:nb.bb, rende:nb.rende, sic:nb.sic, aplSic:nb.aplSic, stone:nb.stone, cora:nb.cora }[k];
+  if(!base) return EXT_CONTAS_ROT[k]; return k==='rende'||k==='aplSic' ? base+' · aplicação' : (k==='bb'||k==='sic' ? base+' · conta' : base); }
+function extImpacto(M0, M1, novos){
+  const porCls = {};
+  for(const l of novos){ const k = l.cls || 'A CLASSIFICAR';
+    const x = porCls[k] = porCls[k] || { classe:k, cat: l.cls ? (l.cat===undefined ? '(sem linha da DRE)' : (norm(l.cat) ? l.cat : 'fora da DRE (//)')) : '—', n:0, total:0 };
+    x.n++; x.total = Math.round((x.total + l.v)*100)/100; }
+  const dre = [], saldos = [];
+  if(M1){ const mesmo = M0 && M0.ano === M1.ano;
+    const vistos = new Set();
+    for(const r of M1.modelo.dre.rows){ if(vistos.has(r.key)) continue; vistos.add(r.key);
+      const a = mesmo ? (M0.modelo.dre.by(r.key)||{}).vals || Array(12).fill(0) : Array(12).fill(0);
+      r.vals.forEach((v,i)=>{ const d = v - (a[i]||0); if(Math.abs(d) > 0.005) dre.push([r.label, i+1, Math.round((a[i]||0)*100)/100, Math.round(v*100)/100]); }); }
+    for(const k of Object.keys(EXT_CONTAS_ROT)){ const b1 = M1.modelo.contas[k]; if(!b1) continue; const b0 = mesmo ? M0.modelo.contas[k] || [] : [];
+      b1.forEach((v,i)=>{ if(v==null) return; const a = b0[i]; if(a==null || Math.abs(v-a) > 0.005) saldos.push([extRotuloConta(k, M1.modelo.bancos), i+1, a==null?null:Math.round(a*100)/100, Math.round(v*100)/100]); }); } }
+  return { porClasse:Object.values(porCls).sort((a,b)=>a.total-b.total), dre, saldos, ano: M1 ? M1.ano : null };
+}
+// importar extratos (vários arquivos de uma vez); cada arquivo vira uma linha do log com o efeito no painel
+let extFila = Promise.resolve();
+function extImportarArquivos(files){ extFila = extFila.then(()=>extImportarAgora(files)); return extFila; }
+async function extImportarAgora(files){
+  if(!files.length || !st.emp || !st.ext) return;
+  $('extDrop').classList.add('busy'); const res = []; let ultimoImp = null;
   try{
     for(const f of files){
-      const x = await extLerArquivo(f);
-      const r = await extApi('lancamentos', {method:'POST', body:{ itens:x.itens.map(i=>({ c:i.c, b:i.b, d:i.d, p:i.p, v:i.v })), saldos:x.saldos.map(s=>({ ...s, o:'extrato' })) }});
+      const x = await extLerArquivo(f), D = st.ext.D, existentes = new Set(D.lanc.map(l=>l.c));
+      const novos = x.itens.filter(i=>!existentes.has(i.c)).map(i=>({ c:i.c, b:i.b, d:i.d, p:i.p, v:i.v, m:null }));
+      const sal = x.saldos.map(s=>({ ...s, o:'extrato' }));
+      let M0 = null, M1 = null; try{ if(D.lanc.length) M0 = extMontarModelo(D); }catch(e){}
+      const D1 = { ...D, lanc:D.lanc.concat(novos), saldos:D.saldos.filter(s=>!sal.some(n=>n.conta===s.conta && n.d===s.d)).concat(sal) };
+      try{ M1 = extMontarModelo(D1); }catch(e){}
+      const detalhe = extImpacto(M0, M1, novos);
+      const r = await extApi('lancamentos', {method:'POST', body:{ itens:x.itens.map(i=>({ c:i.c, b:i.b, d:i.d, p:i.p, v:i.v })), saldos:sal, log:{ tipo:'extrato', arquivo:f.name, banco:x.banco, detalhe } }});
+      novos.forEach(l=>{ l.i = r.importId; }); D.lanc = D1.lanc; D.saldos = D1.saldos; ultimoImp = r.importId;
       res.push(`${extNomeBanco(x.banco)}: ${r.novos} novo(s)${r.repetidos?`, ${r.repetidos} já importado(s)`:''}`);
     }
     toast(res.join(' · '));
     await carregarExtratos(); await extGerarPainel(true);
+    if(ultimoImp) extAbrirPlanilha({ aba:'log', imp:ultimoImp });
   }catch(err){ falha(err); }
   $('extDrop').classList.remove('busy'); $('extFile').value='';
 }
@@ -420,9 +453,10 @@ $('extPlan').onchange = async e => {
   try{
     await carregarXLSX();
     const P = extLerPlanilha(XLSX.read(await f.arrayBuffer(), {type:'array', cellFormula:true}));
-    await extApi('config', {method:'POST', body:{ regras:P.regras, depara:P.depara }});
-    const r = await extApi('lancamentos', {method:'POST', body:{ itens:P.itens.map(i=>({ c:i.c, b:i.b, d:i.d, p:i.p, v:i.v, m:i.m })), saldos:P.saldos, manualPrevalece:true }});
-    for(const m of P.meses) await extApi('mes', {method:'PUT', body:{ mes:m.mes, faturamento:m.f ?? '', rendimento:m.r ?? '' }});
+    await extApi('config', {method:'POST', body:{ regras:P.regras, depara:P.depara, origem:f.name }});
+    const r = await extApi('lancamentos', {method:'POST', body:{ itens:P.itens.map(i=>({ c:i.c, b:i.b, d:i.d, p:i.p, v:i.v, m:i.m })), saldos:P.saldos, manualPrevalece:true,
+      log:{ tipo:'planilha', arquivo:f.name, banco:P.abas.map(a=>a.banco).join(','), detalhe:{ abas:P.abas, regras:P.regras.length, depara:P.depara.length, saldos:P.saldos.length, meses:P.meses.length } } }});
+    for(const m of P.meses) await extApi('mes', {method:'PUT', body:{ mes:m.mes, faturamento:m.f ?? '', rendimento:m.r ?? '', semLog:true }});
     toast(`Planilha importada: ${P.regras.length} regras, ${P.depara.length} classificações, ${r.novos.toLocaleString('pt-BR')} lançamentos novos (${P.abas.map(a=>extNomeBanco(a.banco)).join(', ')})`);
     await carregarExtratos(); await extGerarPainel(true);
   }catch(err){ falha(err); }
@@ -443,3 +477,168 @@ async function extGerarPainel(auto){
   }catch(err){ falha(err); }
 }
 $('bExtGerar').onclick = () => extGerarPainel(false);
+
+/* =====================================================================
+   PLANILHA DA EMPRESA ("Excel" embutido): log, extratos, regras, de-para, resumos, DRE, saldos…
+   Mostra o que cada importação trouxe e como foi classificado; baixa tudo em .xlsx.
+   ===================================================================== */
+const xlLetra = i => { let s=''; i++; while(i>0){ const r=(i-1)%26; s=String.fromCharCode(65+r)+s; i=Math.floor((i-1)/26); } return s; };
+const XL = { abas:[], aba:null, imp:null, soNovo:false, busca:'' };
+function extAbasPlanilha(){
+  const D = st.ext.D, P = extProcessar(D); let M = null; try{ if(D.lanc.length) M = extMontarModelo(D); }catch(e){}
+  const imps = new Map((D.imports||[]).map(x=>[x.id, x]));
+  const quando = iso => iso ? new Date(iso).toLocaleString('pt-BR',{dateStyle:'short', timeStyle:'short'}) : '';
+  const abas = [];
+  abas.push({ id:'log', nome:'Log', cols:[{t:'Data e hora',w:130},{t:'Tipo',w:80},{t:'Arquivo / o que foi feito',w:420},{t:'Banco',w:110},{t:'Período',w:170},{t:'Recebidos',w:80,k:'int'},{t:'Novos',w:70,k:'int'},{t:'Já importados',w:95,k:'int'},{t:'Situação',w:90}],
+    rows:(D.imports||[]).map(x=>[quando(x.criado), x.tipo==='extrato'?'Extrato':x.tipo==='planilha'?'Planilha':'Ajuste', x.arquivo||'', (x.banco||'').split(',').map(extNomeBanco).join(', '),
+      x.ini ? `${extDataBR(x.ini)} a ${extDataBR(x.fim)}` : '', x.recebidos, x.novos, x.repetidos, x.desfeito ? 'desfeita' : '']), meta:(D.imports||[]).map(x=>x.id) });
+  const bancos = [...new Set(D.lanc.map(l=>l.b))];
+  for(const b of bancos){
+    const ls = D.lanc.filter(l=>l.b===b).sort((x,y)=>y.d.localeCompare(x.d) || x.c.localeCompare(y.c));
+    abas.push({ id:'ext_'+b, nome:'Extrato '+extNomeBanco(b), soma:2,
+      cols:[{t:'Data',w:88,k:'data'},{t:'Lançamento',w:390},{t:'Valor (R$)',w:110,k:'num'},{t:'Classificação',w:190},{t:'Como foi classificado',w:250},{t:'Linha da DRE',w:200},{t:'Mês',w:48,k:'int'},{t:'Importado por',w:280}],
+      rows:ls.map(l=>{ const im = imps.get(l.i);
+        return [l.d, l.p, l.v, l.cls || 'A CLASSIFICAR', l.m ? 'ajuste manual' : l.reg ? `regra: "${l.reg.p}"` : 'nenhuma regra pegou', l.cls ? (l.cat===undefined ? '(sem linha da DRE)' : (norm(l.cat) ? l.cat : 'fora da DRE (//)')) : '—',
+          +l.d.slice(5,7), im ? `${im.arquivo||''} · ${quando(im.criado)}` : 'antes do log']; }),
+      meta:ls.map(l=>l.i||null), alerta:ls.map(l=>!l.cls) });
+  }
+  const usoRegra = new Map(); for(const l of D.lanc) if(l.reg) usoRegra.set(l.reg, (usoRegra.get(l.reg)||0)+1);
+  const regras = D.regras.slice().sort((a,b)=>a.b.localeCompare(b.b) || a.o-b.o);
+  abas.push({ id:'regras', nome:'REGRAS', cols:[{t:'Banco',w:110},{t:'Ordem',w:60,k:'int'},{t:'Palavra-chave (* = qualquer texto)',w:320},{t:'Classificação',w:220},{t:'Lançamentos que ela pega',w:170,k:'int'}],
+    rows:regras.map((r,i)=>[extNomeBanco(r.b), regras.filter(x=>x.b===r.b).indexOf(r)+1, r.p, r.c, usoRegra.get(r)||0]) });
+  const porCls = {}; for(const l of D.lanc) if(l.cls){ const k=extChaveClasse(l.cls); const x=porCls[k]=porCls[k]||{n:0,t:0}; x.n++; x.t+=l.v; }
+  const classes = [...new Set([...D.depara.map(x=>extChaveClasse(x.c)), ...Object.keys(porCls)])].sort();
+  const dpm = new Map(D.depara.map(x=>[extChaveClasse(x.c), x.k]));
+  abas.push({ id:'depara', nome:'DEPARA', soma:3, cols:[{t:'Classificação (DE)',w:240},{t:'Linha da DRE (PARA)',w:240},{t:'Lançamentos',w:100,k:'int'},{t:'Total (R$)',w:130,k:'num'}],
+    rows:classes.map(c=>[c, dpm.get(c) ?? '(sem linha da DRE)', (porCls[c]||{}).n||0, Math.round(((porCls[c]||{}).t||0)*100)/100]), alerta:classes.map(c=>!dpm.has(c)) });
+  if(M){
+    const ano = M.ano, res = {};
+    for(const l of D.lanc){ if(+l.d.slice(0,4)!==ano) continue; const k = l.cls ? extChaveClasse(l.cls) : 'A CLASSIFICAR'; (res[k] = res[k] || Array(12).fill(0))[+l.d.slice(5,7)-1] += l.v; }
+    const meses = MESES.map(m=>({t:`${m}/${String(ano).slice(2)}`, w:96, k:'num'}));
+    abas.push({ id:'resumos', nome:'RESUMOS', cols:[{t:'Classificação',w:230},{t:'Linha da DRE',w:200},...meses,{t:'Total',w:110,k:'num'}],
+      rows:Object.entries(res).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>[k, k==='A CLASSIFICAR' ? '—' : (dpm.get(k) ?? '(sem linha da DRE)'), ...v.map(x=>Math.round(x*100)/100), Math.round(v.reduce((t,x)=>t+x,0)*100)/100]) });
+    abas.push({ id:'dre', nome:'DRE', cols:[{t:`D.R.E ${ano}`,w:260},...meses,{t:'Total',w:110,k:'num'}],
+      rows:M.modelo.dre.rows.map(r=>[r.label, ...r.vals.map((x,i)=>i<M.ultimo?Math.round(x*100)/100:null), Math.round(r.vals.slice(0,M.ultimo).reduce((t,x)=>t+x,0)*100)/100]), estilo:M.modelo.dre.rows.map(r=>r.type) });
+    abas.push({ id:'saldos', nome:'Saldos', cols:[{t:'Conta · saldo no fim do mês',w:230},...meses],
+      rows:Object.keys(EXT_CONTAS_ROT).filter(k=>M.modelo.contas[k] && M.modelo.contas[k].some(v=>v!=null && Math.abs(v)>0.005)).map(k=>[extRotuloConta(k, M.modelo.bancos), ...M.modelo.contas[k].map(v=>v==null?null:Math.round(v*100)/100)]) });
+  }
+  abas.push({ id:'fat', nome:'Faturamento', cols:[{t:'Mês',w:100},{t:'Faturamento bruto (R$)',w:170,k:'num'},{t:'Rendimentos das aplicações (R$)',w:210,k:'num'}],
+    rows:D.meses.slice().sort((a,b)=>a.m.localeCompare(b.m)).map(x=>[`${x.m.slice(5)}/${x.m.slice(0,4)}`, x.f, x.r]) });
+  abas.push({ id:'carteira', nome:'Carteira', soma:4, cols:[{t:'Banco',w:100},{t:'Nome',w:320},{t:'Classificação',w:160},{t:'Vencimento',w:100,k:'data'},{t:'Valor (R$)',w:120,k:'num'}],
+    rows:D.carteira.map(x=>[extNomeBanco(x.b), x.n, x.c, x.venc, x.v]) });
+  return abas;
+}
+function extAbrirPlanilha(op={}){
+  if(!st.ext) return;
+  let w = $('xlWin');
+  if(!w){ w = document.createElement('div'); w.id='xlWin'; w.className='xlwin'; document.body.append(w);
+    w.innerHTML = `<div class="xltop"><div class="xltit"><b id="xlTit"></b><span id="xlSub"></span></div>
+      <input type="search" id="xlBusca" placeholder="Procurar nesta aba" autocomplete="off">
+      <label class="xlnovo" title="Mostra só os lançamentos da importação selecionada no Log"><input type="checkbox" id="xlSoNovo"> Só a importação selecionada</label>
+      <button class="btn sm" id="xlBaixar" type="button">Baixar .xlsx</button><button class="xfech" id="xlFechar" type="button" aria-label="Fechar">×</button></div>
+      <div class="xlbody" id="xlBody"></div><div class="xlstatus" id="xlStatus"></div><div class="xltabs" id="xlTabs"></div>`;
+    $('xlFechar').onclick = () => { w.hidden = true; document.body.classList.remove('xl-aberta'); };
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !w.hidden && !document.querySelector('.modal:not([hidden])')) $('xlFechar').click(); });
+    $('xlBusca').addEventListener('input', e=>{ XL.busca = norm(e.target.value); xlDesenhar(); });
+    $('xlSoNovo').addEventListener('change', e=>{ XL.soNovo = e.target.checked; xlDesenhar(); });
+    $('xlBaixar').onclick = xlBaixar;
+    $('xlTabs').addEventListener('click', e=>{ const t=e.target.closest('[data-aba]'); if(!t) return; XL.aba = t.dataset.aba; XL.busca=''; $('xlBusca').value=''; XL.soNovo=false; $('xlSoNovo').checked=false; xlDesenhar(); });
+  }
+  XL.abas = extAbasPlanilha();
+  if(op.imp !== undefined) XL.imp = op.imp;
+  XL.aba = op.aba || XL.aba || 'log'; if(!XL.abas.some(a=>a.id===XL.aba)) XL.aba = 'log';
+  XL.soNovo = !!op.soNovo; $('xlSoNovo').checked = XL.soNovo; XL.busca = ''; $('xlBusca').value = '';
+  $('xlTit').textContent = 'Planilha · ' + st.emp.nome;
+  const D = st.ext.D; $('xlSub').textContent = `${D.lanc.length.toLocaleString('pt-BR')} lançamentos · ${(D.imports||[]).filter(x=>x.tipo!=='ajuste').length} importação(ões)`;
+  w.hidden = false; document.body.classList.add('xl-aberta'); xlDesenhar();
+}
+function xlDesenhar(){
+  const aba = XL.abas.find(a=>a.id===XL.aba); if(!aba) return;
+  $('xlTabs').innerHTML = XL.abas.map(a=>`<button type="button" class="xltab${a.id===XL.aba?' on':''}" data-aba="${a.id}">${esc(a.nome)}</button>`).join('');
+  $('xlSoNovo').parentElement.style.visibility = aba.id.startsWith('ext_') && XL.imp ? 'visible' : 'hidden';
+  if(aba.id==='log') return xlLog(aba);
+  let idx = aba.rows.map((_,i)=>i);
+  if(XL.soNovo && XL.imp && aba.meta) idx = idx.filter(i=>aba.meta[i]===XL.imp);
+  if(XL.busca){ const txt = aba.rows.map(r=>norm(r.map(x=>x==null?'':typeof x==='number'?brl2(x):String(x)).join(' '))); idx = idx.filter(i=>txt[i].includes(XL.busca)); }
+  xlGrade($('xlBody'), aba, idx);
+  const soma = aba.soma!=null ? idx.reduce((t,i)=>t+(+aba.rows[i][aba.soma]||0),0) : null;
+  $('xlStatus').textContent = `${idx.length.toLocaleString('pt-BR')} de ${aba.rows.length.toLocaleString('pt-BR')} linha(s)` + (soma!=null ? ` · Soma de "${aba.cols[aba.soma].t}": ${brl(soma)}` : '')
+    + (aba.meta && XL.imp && aba.meta.includes(XL.imp) ? ` · em amarelo: lançamentos da importação selecionada no Log` : '');
+}
+function xlCelula(v, c){
+  if(v==null || v==='') return '<td></td>';
+  if(c.k==='num'){ const n=+v; return `<td class="n${n<0?' neg':''}">${brl2(n)}</td>`; }
+  if(c.k==='int') return `<td class="n">${(+v).toLocaleString('pt-BR')}</td>`;
+  if(c.k==='data') return `<td>${extDataBR(v)}</td>`;
+  return `<td title="${esc(v)}">${esc(v)}</td>`;
+}
+function xlGrade(box, aba, idx){
+  const RH = 26;
+  box.innerHTML = `<div class="xgscroll"><table class="xg"><colgroup><col style="width:52px">${aba.cols.map(c=>`<col style="width:${c.w}px">`).join('')}</colgroup>
+    <thead><tr class="xgl"><th></th>${aba.cols.map((_,i)=>`<th>${xlLetra(i)}</th>`).join('')}</tr>
+    <tr class="xgn"><th>1</th>${aba.cols.map(c=>`<th class="${c.k==='num'||c.k==='int'?'n':''}">${esc(c.t)}</th>`).join('')}</tr></thead><tbody></tbody></table></div>`;
+  const sc = box.querySelector('.xgscroll'), tb = box.querySelector('tbody'), ncol = aba.cols.length + 1;
+  let ultimo = '';
+  const pintar = () => {
+    const ini = Math.max(0, Math.floor(sc.scrollTop/RH) - 15), fim = Math.min(idx.length, ini + Math.ceil(sc.clientHeight/RH) + 30), chave = ini+':'+fim;
+    if(chave === ultimo) return; ultimo = chave;
+    let h = ini ? `<tr style="height:${ini*RH}px"><td colspan="${ncol}"></td></tr>` : '';
+    for(let k=ini; k<fim; k++){ const i = idx[k], r = aba.rows[i];
+      const cls = [aba.meta && XL.imp && aba.meta[i]===XL.imp ? 'novo' : '', aba.alerta && aba.alerta[i] ? 'alerta' : '', aba.estilo && aba.estilo[i]!=='sub' && aba.estilo[i]!=='sub2' ? 'dre-total' : ''].join(' ');
+      h += `<tr class="${cls}"><th>${i+2}</th>${r.map((v,j)=>xlCelula(v, aba.cols[j])).join('')}</tr>`; }
+    if(fim < idx.length) h += `<tr style="height:${(idx.length-fim)*RH}px"><td colspan="${ncol}"></td></tr>`;
+    tb.innerHTML = h || `<tr><td colspan="${ncol}" class="xlvazio">Nada para mostrar.</td></tr>`;
+  };
+  sc.addEventListener('scroll', ()=>requestAnimationFrame(pintar)); pintar();
+  new ResizeObserver(()=>{ ultimo=''; pintar(); }).observe(sc);
+}
+// aba Log: lista de importações/ajustes e o detalhe da selecionada (o que subiu e o efeito no painel)
+function xlLog(aba){
+  const D = st.ext.D, imps = D.imports || [], sel = imps.find(x=>x.id===XL.imp);
+  const tipoTag = x => `<span class="xltag ${x.tipo}">${x.tipo==='extrato'?'Extrato':x.tipo==='planilha'?'Planilha':'Ajuste'}</span>`;
+  const quando = iso => new Date(iso).toLocaleString('pt-BR',{dateStyle:'short', timeStyle:'short'});
+  const mesN = (ano, m) => `${MESES[m-1]}/${String(ano||'').slice(2)}`;
+  let det = '';
+  if(sel){
+    const d = sel.detalhe || {}, banco = (sel.banco||'').split(',').filter(Boolean);
+    const tab = (cab, linhas) => linhas.length ? `<table class="xlmini"><tr>${cab.map(c=>`<th>${c}</th>`).join('')}</tr>${linhas.join('')}</table>` : '<div class="xlvazio">Nada mudou.</div>';
+    const dif = (a, b) => { const x = (b||0) - (a||0); return `<td class="n ${x<0?'neg':'pos'}">${x>0?'+':''}${brl2(x)}</td>`; };
+    det = `<div class="xldet"><div class="xldh"><div>${tipoTag(sel)} <b>${esc(sel.arquivo||'')}</b>${sel.desfeito?' <span class="xltag desfeito">desfeita</span>':''}
+        <div class="xldm">${quando(sel.criado)}${banco.length?' · '+banco.map(extNomeBanco).join(', '):''}${sel.ini?` · lançamentos de ${extDataBR(sel.ini)} a ${extDataBR(sel.fim)}`:''}</div></div>
+        <div class="xldacts">${sel.tipo==='extrato' && !sel.desfeito && sel.novos ? `<button class="btn sm primary" type="button" id="xlVerNovos">Ver os ${sel.novos} lançamento(s) na aba Extrato ${esc(extNomeBanco(banco[0]))}</button>` : ''}
+        ${sel.tipo!=='ajuste' && !sel.desfeito && sel.novos ? `<button class="btn sm danger" type="button" id="xlDesfazer">Desfazer importação</button>` : ''}</div></div>`
+      + (sel.tipo!=='ajuste' ? `<div class="xlnums"><div><b>${(sel.recebidos||0).toLocaleString('pt-BR')}</b><span>lançamentos no arquivo</span></div><div><b class="pos">${(sel.novos||0).toLocaleString('pt-BR')}</b><span>novos (subiram)</span></div><div><b>${(sel.repetidos||0).toLocaleString('pt-BR')}</b><span>já estavam importados</span></div></div>` : '')
+      + (sel.tipo==='extrato' ? `<div class="xlcols"><div><h4>O que subiu, por classificação</h4>${tab(['Classificação','Linha da DRE','Lanç.','Total (R$)'], (d.porClasse||[]).map(x=>`<tr class="${x.classe==='A CLASSIFICAR'?'alerta':''}"><td>${esc(x.classe)}</td><td>${esc(x.cat)}</td><td class="n">${x.n}</td><td class="n ${x.total<0?'neg':''}">${brl2(x.total)}</td></tr>`))}</div>
+          <div><h4>Efeito no painel ${d.ano?'('+d.ano+')':''}</h4>${tab(['Linha da DRE','Mês','Antes','Depois','Diferença'], (d.dre||[]).map(([l,m,a,b])=>`<tr><td>${esc(l)}</td><td>${mesN(d.ano,m)}</td><td class="n">${brl2(a)}</td><td class="n">${brl2(b)}</td>${dif(a,b)}</tr>`))}
+          ${(d.saldos||[]).length ? `<h4 style="margin-top:12px">Saldos no fim do mês</h4>${tab(['Conta','Mês','Antes','Depois','Diferença'], d.saldos.map(([l,m,a,b])=>`<tr><td>${esc(l)}</td><td>${mesN(d.ano,m)}</td><td class="n">${a==null?'—':brl2(a)}</td><td class="n">${brl2(b)}</td>${a==null?'<td></td>':dif(a,b)}</tr>`))}` : ''}</div></div>` : '')
+      + (sel.tipo==='planilha' && d.abas ? `<div class="xldm" style="margin-top:8px">Abas lidas: ${d.abas.map(a=>`${esc(a.nome)} (${a.linhas})`).join(', ')} · ${d.regras} regras · ${d.depara} classificações · ${d.saldos} saldos · ${d.meses} meses de faturamento</div>` : '')
+      + `</div>`;
+  }
+  $('xlBody').innerHTML = `<div class="xllog">${det}<div class="xglog"></div></div>`;
+  xlGrade($('xlBody').querySelector('.xglog'), aba, aba.rows.map((_,i)=>i));
+  $('xlBody').querySelectorAll('.xglog tbody tr').forEach(()=>{});
+  $('xlBody').querySelector('.xglog').addEventListener('click', e=>{ const tr = e.target.closest('tbody tr'); if(!tr) return; const n = +(tr.querySelector('th')||{}).textContent - 2; if(!(n>=0)) return; XL.imp = aba.meta[n]; xlDesenhar(); });
+  $('xlStatus').textContent = `${imps.length} registro(s) no log · clique numa linha para ver o detalhe`;
+  if(sel){ const v = $('xlVerNovos'); if(v) v.onclick = () => { XL.aba = 'ext_'+(sel.banco||'').split(',')[0]; XL.soNovo = true; $('xlSoNovo').checked = true; xlDesenhar(); };
+    const u = $('xlDesfazer'); if(u) u.onclick = async () => {
+      if(!await confirmar('Desfazer esta importação?', `Os ${sel.novos} lançamento(s) que vieram de "${sel.arquivo}" saem da planilha e do painel. Dá para importar de novo depois.`, 'Desfazer')) return;
+      try{ const r = await extApi('desfazer', {method:'POST', body:{ id:sel.id }}); toast(`${r.removidos} lançamento(s) removidos`); await carregarExtratos(); await extGerarPainel(true); extAbrirPlanilha({ aba:'log', imp:sel.id }); }
+      catch(err){ falha(err); } }; }
+}
+async function xlBaixar(){
+  try{
+    await carregarXLSX();
+    const wb = XLSX.utils.book_new();
+    for(const a of XL.abas){
+      const dados = [a.cols.map(c=>c.t), ...a.rows.map(r=>r.map((v,j)=>a.cols[j].k==='data' && v ? new Date(+v.slice(0,4), +v.slice(5,7)-1, +v.slice(8,10)) : v))];
+      const ws = XLSX.utils.aoa_to_sheet(dados, {cellDates:true});
+      a.cols.forEach((c,j)=>{ for(let i=1;i<dados.length;i++){ const cel = ws[XLSX.utils.encode_cell({r:i,c:j})]; if(!cel) continue;
+        if(c.k==='num') cel.z = '#,##0.00;[Red]-#,##0.00'; else if(c.k==='data') cel.z = 'dd/mm/yyyy'; } });
+      ws['!cols'] = a.cols.map(c=>({ wch: Math.max(8, Math.round(c.w/7)) }));
+      if(dados.length > 1) ws['!autofilter'] = { ref: XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:dados.length-1, c:a.cols.length-1}}) };
+      XLSX.utils.book_append_sheet(wb, ws, a.nome.slice(0,31));
+    }
+    XLSX.writeFile(wb, `Planilha ${st.emp.nome} ${hojeISO()}.xlsx`);
+  }catch(err){ falha(err); }
+}
+$('bExtAbrir').onclick = () => extAbrirPlanilha({ aba:'log' });
