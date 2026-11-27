@@ -1085,3 +1085,45 @@ table.xlmini{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-n
 .xlmini .n,.xlmini td.n{text-align:right;white-space:nowrap}.xlmini .neg{color:#c4271b}
 .xlmini tr.alerta td{color:#b25b00}
 @media (max-width:760px){.xlcols{grid-template-columns:1fr}.xldet{max-height:65%}#xlBusca{width:100%}.xltop{gap:8px}}
+
+/* ===== Logo da empresa ===== */
+.av.logo,.sbav.logo{background:#fff !important;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12);padding:3px;overflow:hidden}
+.sbav.logo{padding:1px}
+.av.logo img,.sbav.logo img{width:100%;height:100%;object-fit:contain;display:block;border-radius:inherit}
+.logorow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.slogo{width:64px;height:64px;margin:4px auto 8px;border-radius:16px}
+
+/* ===== Planilha: barra de formatação, seleção e filtros ===== */
+.xltool{display:flex;align-items:center;gap:4px;padding:6px 12px;border-bottom:1px solid #e3e3e6;background:#fafafb;overflow-x:auto;flex-shrink:0;scrollbar-width:thin}
+.xltool>button,.xltool select,.xlcor{height:30px;min-width:30px;padding:0 8px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit;font-size:13px;color:#1d1d1f;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:4px;flex:none}
+.xltool select{border-color:#d9d9de;background:#fff;padding:0 6px}
+#xlFonte{width:132px}#xlTam{width:64px}
+.xltool>button:hover,.xlcor:hover{background:#ececf0}
+.xltool>button.on{background:#dfe9fb;border-color:#b9cdf3;color:#1a56db}
+.xltool .xltg{border-color:#d9d9de;background:#fff}
+.xltool .xltg.on{background:#e6f4ea;border-color:#a7d7b5;color:#1a7f37}
+.xlsep{width:1px;height:20px;background:#dcdce0;margin:0 4px;flex:none}
+.xlcor{position:relative}
+.xlci{font-weight:700;line-height:1;padding-bottom:2px;border-bottom:4px solid var(--cc,#1d1d1f);min-width:14px;text-align:center}
+.xlcor input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.xlselinfo{margin-left:auto;font-size:12px;color:#8a8a8e;white-space:nowrap;padding-left:10px}
+.xg{user-select:none}
+.xg td.sel{box-shadow:inset 0 0 0 9999px rgba(26,86,219,.12);outline:1px solid rgba(26,86,219,.55);outline-offset:-1px}
+.xg tbody th.sel,.xg thead .xgl th.sel{background:#d3e0f7;color:#1a56db}
+.xg thead .xgl th[data-cj],.xg tbody th,.xgcanto{cursor:pointer}
+.xg.semgrade td{border-color:transparent}
+.xg.semgrade tbody tr td{border-bottom-color:transparent}
+.xg thead .xgn th.comf{padding-right:26px;position:sticky}
+.xg thead .xgn th span{overflow:hidden;text-overflow:ellipsis;display:block}
+.xlfb{position:absolute;right:3px;top:3px;width:20px;height:20px;border:1px solid #cfcfd4;border-radius:5px;background:#fff;font-size:11px;line-height:1;cursor:pointer;color:#515154;padding:0}
+.xlfb.on{background:#1a56db;border-color:#1a56db;color:#fff}
+.xlpop{position:fixed;z-index:70;background:#fff;border:1px solid #d9d9de;border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.18);padding:8px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.xlpop>button{border:0;background:transparent;text-align:left;padding:6px 8px;border-radius:7px;font:inherit;cursor:pointer}
+.xlpop>button:hover{background:#f1f1f3}
+.xlpop input[type=search]{padding:6px 8px;border:1px solid #d9d9de;border-radius:8px;font:inherit;font-size:13px}
+.xlpop-l{max-height:200px;overflow:auto;border:1px solid #ececf0;border-radius:8px;padding:4px 6px;display:flex;flex-direction:column}
+.xlpop-l label,.xlpop-all{display:flex;gap:6px;align-items:center;padding:2px 0;white-space:nowrap}
+.xlpop-l span{overflow:hidden;text-overflow:ellipsis}
+.xlpop small{color:#8a8a8e}
+.xlpop-b{display:flex;justify-content:space-between;gap:8px}
+@media (max-width:760px){.xlselinfo{display:none}}

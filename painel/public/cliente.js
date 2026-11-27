@@ -5,6 +5,8 @@ ANEXO_URL = id => '/api/anexos?conta='+encodeURIComponent(id)+'&token='+token;
 const cs = { model:null, mode:'mensal', m:null, relId:null, cache:new Map(), dados:null, contas:null, calMes:mesAtual() };
 
 function status(t, s){ const el=$('status'); if(t==null){ el.hidden=true; return; } el.hidden=false; el.innerHTML=''; const b=document.createElement('b'); b.textContent=t; el.append(b, document.createTextNode(s||'')); }
+function porAvCli(el, e){ el.style.setProperty('--c','#902884'); el.classList.toggle('logo', !!e.logo);
+  if(e.logo){ const i = document.createElement('img'); i.src = e.logo; i.alt = ''; el.replaceChildren(i); } else el.textContent = iniciais(e.nome); }
 const iniciais = n => String(n||'?').trim().split(/\s+/).filter(w=>w.length>2||/^[A-Z]/.test(w)).slice(0,2).map(w=>w[0]).join('').toUpperCase() || '?';
 
 async function chamar(method, url, body){
@@ -31,6 +33,7 @@ async function carregar(rel, { silencioso=false } = {}){
 function pedirSenha(emp){
   sairTv(); status(null); $('v-emp').hidden=true; $('bSair').hidden=true; $('vSenha').hidden=false; document.body.classList.remove('has-side');
   $('sNome').textContent = emp && emp.nome ? emp.nome : 'Painel financeiro';
+  if(emp && emp.logo){ const i=document.createElement('img'); i.src=emp.logo; i.alt=''; $('sLogo').replaceChildren(i); $('sLogo').hidden=false; } else $('sLogo').hidden=true;
   setTimeout(()=>$('iSenha').focus(), 50);
 }
 $('vSenha').onsubmit = async ev => {
@@ -48,7 +51,7 @@ $('bSair').onclick = async () => { await chamar('DELETE', '/api/publico?token='+
 /* ---------- painel ---------- */
 function mostrar(d){
   cs.dados=d; status(null); $('vSenha').hidden=true; $('v-emp').hidden=false; $('bSair').hidden=false; document.body.classList.add('has-side');
-  $('sbNome').textContent=d.empresa.nome; $('sbAv').textContent=iniciais(d.empresa.nome); $('sbAv').style.setProperty('--c','#902884');
+  $('sbNome').textContent=d.empresa.nome; porAvCli($('sbAv'), d.empresa);
   $('sbMeta').textContent = d.relatorio ? 'atualizado em '+diaBR(d.relatorio.enviadoEm) : (d.empresa.cnpj||'');
   EMP_NOME = d.empresa.nome; REPORT_OPTS.posicao = d.empresa.posicao!==false;
   cs.contas = d.contas || null; if(cs.contas) cs.calMes = cs.contas.mes;
@@ -56,7 +59,7 @@ function mostrar(d){
   cs.repasses = d.repasses || null;
   REPORT_OPTS.extra = (cs.contas ? 1 : 0) + (cs.contratos ? 1 : 0) + (cs.repasses ? 1 : 0);
   $('tbar').classList.remove('so-cal');
-  $('eNome').textContent=d.empresa.nome; $('eAv').textContent=iniciais(d.empresa.nome); $('eAv').style.setProperty('--c','#902884');
+  $('eNome').textContent=d.empresa.nome; porAvCli($('eAv'), d.empresa);
   document.title = d.empresa.nome+' · Evolução Financeira';
   $('ver').innerHTML = d.versoes.map((v,i)=>`<option value="${esc(v.id)}">${i===0?'Atual · ':''}${esc(diaBR(v.enviadoEm))} (até ${MESES[(v.ultimo||1)-1]})</option>`).join('');
   if(!d.relatorio){

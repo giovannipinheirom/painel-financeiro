@@ -6,6 +6,15 @@
 // DELETE ?id=    apaga a empresa e todos os envios
 import { rota, db, exigirAdmin, corpo, texto, novoId, ID_OK, HttpError, CORES, hashSenha } from './_lib.js';
 
+// logo: imagem pequena (o navegador já reduz) guardada como data URL
+const LOGO_OK = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+function logoDe(b) {
+  if (b.logo === undefined) return undefined;
+  if (b.logo === null || b.logo === '') return null;
+  const l = String(b.logo);
+  if (l.length > 400000 || !LOGO_OK.test(l)) throw new HttpError(400, 'Logo inválida (use PNG, JPG ou WebP de até 300 KB).');
+  return l;
+}
 const campos = b => {
   const nome = texto(b.nome, 80);
   if (!nome) throw new HttpError(400, 'Informe o nome da empresa.');
@@ -26,7 +35,7 @@ const campos = b => {
 
 async function buscar(sql, id) {
   const linhas = await sql`
-    select e.id, e.nome, e.cnpj, e.contato, e.cor, e.token, e.criado_em,
+    select e.id, e.nome, e.cnpj, e.contato, e.cor, e.logo, e.token, e.criado_em,
            e.senha_hash is not null as tem_senha, e.senha_em, e.posicao_clientes, e.contas_pagar, e.contratos,
            e.repasses, e.repasse_prazo, e.repasses_em, e.extratos,
            r.id as rel_id, r.arquivo, r.enviado_em, r.resumo
@@ -38,7 +47,7 @@ async function buscar(sql, id) {
      where ${id ? sql`e.id = ${id}` : sql`true`}
      order by lower(e.nome)`;
   return linhas.map(l => ({
-    id: l.id, nome: l.nome, cnpj: l.cnpj, contato: l.contato, cor: l.cor, token: l.token, criadoEm: l.criado_em,
+    id: l.id, nome: l.nome, cnpj: l.cnpj, contato: l.contato, cor: l.cor, logo: l.logo || null, token: l.token, criadoEm: l.criado_em,
     temSenha: l.tem_senha, senhaEm: l.senha_em, posicao: l.posicao_clientes, contas: l.contas_pagar, contratos: l.contratos,
     repasses: l.repasses, repassePrazo: l.repasse_prazo, repassesEm: l.repasses_em, extratos: l.extratos,
     ultimo: l.rel_id ? { relId: l.rel_id, arquivo: l.arquivo, enviadoEm: l.enviado_em, ...(l.resumo || {}) } : null,
@@ -62,6 +71,7 @@ export default rota(async (req, res) => {
     await sql`insert into empresas (id, nome, cnpj, contato, cor, token, posicao_clientes, contas_pagar, contratos, repasses, extratos, senha_hash, senha_em)
               values (${novo}, ${c.nome}, ${c.cnpj}, ${c.contato}, ${c.cor}, ${novoId(24)}, ${c.posicao}, ${c.contas}, ${c.contratos}, ${c.repasses}, ${c.extratos},
                       ${c.senhaHash}, ${c.senhaHash ? sql`now()` : null})`;
+    const logo = logoDe(corpo(req)); if (logo) await sql`update empresas set logo = ${logo} where id = ${novo}`;
     return res.status(201).json((await buscar(sql, novo))[0]);
   }
   if (!id) throw new HttpError(400, 'Falta o id da empresa.');
@@ -79,6 +89,7 @@ export default rota(async (req, res) => {
                     posicao_clientes=${c.posicao}, contas_pagar=${c.contas}, contratos=${c.contratos}, repasses=${c.repasses}, extratos=${c.extratos} where id=${id}`;
     }
     if (!r.count) throw new HttpError(404, 'Empresa não encontrada.');
+    const logo = logoDe(b); if (logo !== undefined) await sql`update empresas set logo = ${logo} where id = ${id}`;
     return res.json((await buscar(sql, id))[0]);
   }
   if (req.method === 'DELETE') {

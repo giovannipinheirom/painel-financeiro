@@ -50,7 +50,7 @@ async function dados(sql, e, rel, mes) {
   }
   const [contas, repasses, contratos] = await extras;
   return {
-    empresa: { nome: e.nome, cnpj: e.cnpj, posicao: e.posicao_clientes },
+    empresa: { nome: e.nome, cnpj: e.cnpj, logo: e.logo || null, posicao: e.posicao_clientes },
     contas,
     repasses,
     contratos: contratos ? contratos.map(c => ({ nome: c.nome, parcelas: c.parcelas.map(p => ({ vencimento: p.vencimento, valor: p.valor })) })) : null,
@@ -71,9 +71,9 @@ export default rota(async (req, res) => {
   if (rel != null && !ID_OK.test(rel)) throw new HttpError(400, 'Versão inválida.');
 
   const sql = await db();
-  const [e] = await sql`select id, nome, cnpj, senha_hash, posicao_clientes, contas_pagar, contratos, repasses, repasse_prazo, repasses_em, repasses_arquivo from empresas where token = ${token}`;
+  const [e] = await sql`select id, nome, cnpj, logo, senha_hash, posicao_clientes, contas_pagar, contratos, repasses, repasse_prazo, repasses_em, repasses_arquivo from empresas where token = ${token}`;
   if (!e) throw new HttpError(404, 'Este link não está mais ativo. Peça um novo ao seu consultor.');
-  const nome = { empresa: { nome: e.nome } };
+  const nome = { empresa: { nome: e.nome, logo: e.logo || null } };
 
   if (req.method === 'DELETE') { fecharSessaoCliente(req, res, e.id); return res.json({ ok: true }); }
   if (!e.senha_hash) return erro(res, 403, 'O painel ainda não foi liberado. Fale com o seu consultor.', { bloqueado: true, ...nome });

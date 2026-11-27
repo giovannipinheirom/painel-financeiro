@@ -158,6 +158,11 @@
   <label class="chk"><input type="checkbox" id="iRepasses"><span>Incluir <b>Repasses a fornecedores</b><small>Para quem paga fornecedores depois de uma solicitação (ex.: brechó com peças consignadas). Você importa a planilha de controle e o painel mostra o que vence, o que atrasou e o prazo real.</small></span></label>
   <label class="chk"><input type="checkbox" id="iContratos"><span>Incluir <b>Contratos</b><small>Parcelas de contratos com previsão de pagamentos. As parcelas também entram no calendário de contas.</small></span></label>
   <div class="fld"><span>Cor do card</span><div class="colors" id="iCor"></div></div>
+  <div class="fld"><span>Logo da empresa</span>
+    <div class="logorow"><div class="av" id="iLogoPrev"></div>
+      <button type="button" class="btn sm" id="bLogo">Escolher imagem</button><button type="button" class="btn sm" id="bLogoDel" hidden>Remover</button>
+      <input type="file" id="iLogo" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden></div>
+    <small class="hint">Aparece no card, no topo e no painel do cliente. PNG com fundo transparente fica melhor; a imagem é reduzida automaticamente.</small></div>
   <div class="mact">
     <button type="button" class="btn danger left" id="bDelEmp" hidden>Excluir empresa</button>
     <button type="button" class="btn" data-close>Cancelar</button>

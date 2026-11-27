@@ -7,6 +7,7 @@
 // PUT    ?empresa=&acao=manual             {chaves:[], classe}  classificação manual (vazio = volta para a regra)
 // PUT    ?empresa=&acao=depara             {classe, categoria}
 // PUT    ?empresa=&acao=mes                {mes:'AAAA-MM', faturamento, rendimento}
+// PUT    ?empresa=&acao=formato            {fmt}  formatação da planilha embutida
 // PUT    ?empresa=&acao=saldo              {conta, d, s}   (s vazio = apaga)
 // POST   ?empresa=&acao=carteira           {banco, itens:[{n,c,venc,v}]}  substitui a carteira daquele banco
 // POST   ?empresa=&acao=desfazer           {id}  apaga os lançamentos que uma importação trouxe
@@ -31,7 +32,7 @@ export default rota(async (req, res) => {
     values (${novoId(12)}, ${emp}, 'ajuste', ${texto(arquivo, 300)}, ${extra.banco || null}, ${extra.detalhe ? sql.json(extra.detalhe) : null})`;
 
   if (req.method === 'GET') {
-    const [lanc, regras, depara, saldos, meses, carteira, imports] = await Promise.all([
+    const [lanc, regras, depara, saldos, meses, carteira, imports, fmt] = await Promise.all([
       sql`select chave as c, banco as b, to_char(data,'YYYY-MM-DD') as d, partes as p, valor::float8 as v, manual as m, imp as i
             from ext_lanc where empresa_id = ${emp} order by data, banco, chave`,
       sql`select banco as b, ordem as o, padrao as p, classe as c from ext_regra where empresa_id = ${emp} order by banco, ordem`,
@@ -41,8 +42,9 @@ export default rota(async (req, res) => {
       sql`select banco as b, nome as n, classe as c, to_char(vencimento,'YYYY-MM-DD') as venc, valor::float8 as v from ext_carteira where empresa_id = ${emp}`,
       sql`select id, criado, tipo, arquivo, banco, to_char(ini,'YYYY-MM-DD') as ini, to_char(fim,'YYYY-MM-DD') as fim, recebidos, novos, repetidos, detalhe, desfeito
             from ext_import where empresa_id = ${emp} order by criado desc limit 500`,
+      sql`select planilha_fmt as f from empresas where id = ${emp}`,
     ]);
-    return res.json({ lanc, regras, depara, saldos, meses, carteira, imports });
+    return res.json({ lanc, regras, depara, saldos, meses, carteira, imports, fmt: (fmt[0] && fmt[0].f) || null });
   }
   const b = req.method === 'DELETE' ? {} : corpo(req);
 
@@ -112,6 +114,13 @@ export default rota(async (req, res) => {
     await sql`insert into ext_depara (empresa_id, classe, categoria) values (${emp}, ${classe}, ${categoria})
               on conflict (empresa_id, classe) do update set categoria = excluded.categoria`;
     await registrar(`De-para: ${classe} → ${categoria}`);
+    return res.json({ ok: true });
+  }
+  // formatação da planilha embutida (cores, fontes, negrito, filtros, linhas de grade…)
+  if (req.method === 'PUT' && acao === 'formato') {
+    const f = b.fmt && typeof b.fmt === 'object' ? b.fmt : null;
+    if (f && JSON.stringify(f).length > 500000) throw new HttpError(400, 'Formatação grande demais.');
+    await sql`update empresas set planilha_fmt = ${f ? sql.json(f) : null} where id = ${emp}`;
     return res.json({ ok: true });
   }
   if (req.method === 'PUT' && acao === 'mes') {

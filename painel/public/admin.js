@@ -20,6 +20,9 @@ const falha = e => { if(!e.silent){ console.error(e); toast(e.message); } };
 /* ---------- utilidades ---------- */
 const iniciais = n => String(n||'?').trim().split(/\s+/).filter(w=>w.length>2||/^[A-Z]/.test(w)).slice(0,2).map(w=>w[0]).join('').toUpperCase() || String(n||'?')[0].toUpperCase();
 const corDe = e => CORES.includes(e && e.cor) ? e.cor : CORES[0];
+// avatar da empresa: a logo, se tiver; senão as iniciais na cor do card
+const avHTML = (e, cls='av', tag='div') => e && e.logo ? `<${tag} class="${cls} logo"><img src="${esc(e.logo)}" alt=""></${tag}>` : `<${tag} class="${cls}" style="--c:${corDe(e)}">${esc(iniciais(e && e.nome))}</${tag}>`;
+function porAv(el, e){ el.classList.toggle('logo', !!(e && e.logo)); el.style.setProperty('--c', corDe(e)); el.innerHTML = e && e.logo ? `<img src="${esc(e.logo)}" alt="">` : esc(iniciais(e && e.nome)); }
 function setStatus(t, s){ const el=$('status'); if(t==null){ el.hidden=true; return; } el.hidden=false; el.innerHTML=''; const b=document.createElement('b'); b.textContent=t; el.append(b, document.createTextNode(s||'')); }
 function showErr(msg){ $('err').textContent=msg||''; $('err').hidden=!msg; }
 function show(v){ $('vLogin').hidden=v!=='login'; $('v-home').hidden=v!=='home'; $('v-emp').hidden=v!=='emp'; if(v) setStatus(null); }
@@ -71,7 +74,7 @@ function desenharCards(){
   for(const e of st.empresas){
     const u=e.ultimo, cor=corDe(e);
     const el=document.createElement('a'); el.className='ecard'; el.href='#e-'+e.id; el.style.setProperty('--c',cor);
-    el.innerHTML = `<div class="t"><div class="av" style="--c:${cor}">${esc(iniciais(e.nome))}</div><div style="min-width:0"><h2>${esc(e.nome)}${e.temSenha?'':'<span class="warn">sem senha</span>'}</h2><div class="meta">${esc([e.cnpj,e.contato].filter(Boolean).join(' · ')||'—')}</div></div></div>`
+    el.innerHTML = `<div class="t">${avHTML(e)}<div style="min-width:0"><h2>${esc(e.nome)}${e.temSenha?'':'<span class="warn">sem senha</span>'}</h2><div class="meta">${esc([e.cnpj,e.contato].filter(Boolean).join(' · ')||'—')}</div></div></div>`
       + (u && typeof u.rb==='number'
         ? `<div class="mk"><div><span>Receita · ${MESES[(u.mes||1)-1]}</span><b>${curto(u.rb)}</b></div><div><span>Resultado · ${MESES[(u.mes||1)-1]}</span><b class="${u.rl<0?'neg':''}">${curto(u.rl)}</b></div></div>`
         : `<div class="nodata">Nenhuma planilha enviada ainda</div>`)
@@ -83,7 +86,22 @@ function desenharCards(){
 }
 
 /* ---------- formulário de empresa ---------- */
-let editId=null, corSel=CORES[0];
+let editId=null, corSel=CORES[0], logoSel; // logoSel: undefined = não mexeu, null = remover, data URL = nova
+function logoPrev(logo, emp){ porAv($('iLogoPrev'), { nome: $('iNome').value || (emp && emp.nome) || '?', cor: corSel, logo }); $('bLogoDel').hidden = !logo; }
+// reduz a imagem no navegador (máx. 256 px) antes de salvar
+async function reduzirLogo(file){
+  if(!/^image\//.test(file.type)) throw new Error('Escolha um arquivo de imagem (PNG, JPG, SVG ou WebP).');
+  if(file.size > 15*1024*1024) throw new Error('Imagem grande demais (máx. 15 MB).');
+  const url = URL.createObjectURL(file);
+  try{
+    const img = await new Promise((ok, erro)=>{ const i = new Image(); i.onload = ()=>ok(i); i.onerror = ()=>erro(new Error('Não consegui abrir essa imagem.')); i.src = url; });
+    const w0 = img.naturalWidth || 256, h0 = img.naturalHeight || 256, k = Math.min(1, 256/Math.max(w0, h0));
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w0*k)); c.height = Math.max(1, Math.round(h0*k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    let d = c.toDataURL('image/png'); if(d.length > 300000) d = c.toDataURL('image/webp', .9); if(d.length > 300000) d = c.toDataURL('image/jpeg', .85);
+    return d;
+  } finally { URL.revokeObjectURL(url); }
+}
 function abrirForm(emp){
   editId = emp? emp.id : null;
   $('mEmpT').textContent = emp? 'Editar empresa' : 'Nova empresa';
@@ -98,9 +116,14 @@ function abrirForm(emp){
     : `Senha definida em ${diaBR(emp.senhaEm)}. Preencha só se quiser trocar (quem estiver logado com a antiga sai na hora).`;
   corSel = emp ? corDe(emp) : CORES[st.empresas.length % CORES.length];
   $('iCor').innerHTML = CORES.map(c=>`<button type="button" data-c="${c}" style="background:${c}" class="${c===corSel?'on':''}" aria-label="cor"></button>`).join('');
+  logoSel = undefined; logoPrev(emp ? emp.logo : null, emp);
   $('bDelEmp').hidden=!emp; $('mEmp').hidden=false; setTimeout(()=>$('iNome').focus(),50);
 }
-$('iCor').onclick = e => { const b=e.target.closest('button'); if(!b) return; corSel=b.dataset.c; [...$('iCor').children].forEach(x=>x.classList.toggle('on',x===b)); };
+$('iCor').onclick = e => { const b=e.target.closest('button'); if(!b) return; corSel=b.dataset.c; [...$('iCor').children].forEach(x=>x.classList.toggle('on',x===b)); if(!$('iLogoPrev').classList.contains('logo')) porAv($('iLogoPrev'), { nome:$('iNome').value, cor:corSel }); };
+$('bLogo').onclick = () => $('iLogo').click();
+$('iLogo').onchange = async e => { const f = e.target.files[0]; e.target.value=''; if(!f) return;
+  try{ logoSel = await reduzirLogo(f); logoPrev(logoSel); }catch(err){ toast(err.message); } };
+$('bLogoDel').onclick = () => { logoSel = null; logoPrev(null); };
 $('iCnpj').oninput = e => { const d=e.target.value.replace(/\D/g,'').slice(0,14); e.target.value = d.length>12? d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2}).*/,'$1.$2.$3/$4-$5') : d; };
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$('mEmp').hidden=true);
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') $('mEmp').hidden=true; });
@@ -111,12 +134,14 @@ $('fEmp').onsubmit = async ev => {
   ev.preventDefault();
   const body={ nome:$('iNome').value.trim(), cnpj:$('iCnpj').value.trim(), contato:$('iCont').value.trim(), cor:corSel,
     posicao:$('iPos').checked, contas:$('iContas').checked, contratos:$('iContratos').checked, repasses:$('iRepasses').checked, extratos:$('iExtratos').checked, senha:$('iSenhaCli').value.trim() };
+  if(logoSel !== undefined) body.logo = logoSel;
   if(!body.nome) return;
   if(body.senha && body.senha.length<4) return toast('A senha precisa ter pelo menos 4 caracteres.');
   $('bSave').disabled=true;
   try{
     if(editId){
       st.emp = await api('empresas?id='+editId,{method:'PUT', body});
+      { const k = st.empresas.findIndex(x=>x.id===editId); if(k>=0) st.empresas[k] = st.emp; desenharLateral(); }
       if(body.senha) senhasNovas.set(editId, body.senha);
       st.rendered=null; cabecalho(); await carregarContas(); await carregarContratos(); await carregarRepasses(); await carregarExtratos(); escolherVersao(); toast(body.senha?'Empresa atualizada. Senha nova ativa.':'Empresa atualizada');
     } else {
@@ -159,7 +184,7 @@ async function abrirEmpresa(id){
 }
 function cabecalho(){
   const e=st.emp; EMP_NOME=e.nome||'';
-  $('eNome').textContent=e.nome; $('eAv').textContent=iniciais(e.nome); $('eAv').style.setProperty('--c',corDe(e));
+  $('eNome').textContent=e.nome; porAv($('eAv'), e);
   $('eMeta').textContent=[e.cnpj, e.contato, e.ultimo?'atualizado em '+dataBR(e.ultimo.enviadoEm):null].filter(Boolean).join(' · ');
   if(!e.temSenha){ const w=document.createElement('span'); w.className='warn'; w.textContent='sem senha: o cliente não consegue abrir'; $('eMeta').append(' ', w); }
   REPORT_OPTS.posicao = e.posicao!==false;
@@ -523,7 +548,7 @@ function desenharLateral(){
   for(const e of lista){
     const a=document.createElement('a'); a.className='sbi emp'+(e.id===atual?' on':''); a.href='#e-'+e.id;
     const u=e.ultimo, val = u && typeof u.rl==='number' ? `<em class="${u.rl<0?'neg':''}">${esc(curto(u.rl))}</em>` : (e.temSenha ? '' : '<em class="alerta">sem senha</em>');
-    a.innerHTML = `<i class="sbav" style="--c:${corDe(e)}">${esc(iniciais(e.nome))}</i><span>${esc(e.nome)}</span>${val}`;
+    a.innerHTML = `${avHTML(e,'sbav','i')}<span>${esc(e.nome)}</span>${val}`;
     box.append(a);
   }
   $('sbHome').classList.toggle('on', !atual && !$('v-home').hidden);
@@ -562,7 +587,7 @@ function desenharVisao(){
     </div>
     <div class="opend">
       <div class="oph"><h2>${pend.length ? 'Pendências' : 'Tudo em dia'}</h2><span>${pend.length ? pend.length+' item(ns) para resolver' : 'Nenhuma empresa precisa de atenção agora.'}</span></div>
-      ${pend.length ? `<div class="olist">${pend.slice(0,st.verTodasPend ? 999 : 6).map(([e,t,acao])=>`<a class="oitem" href="#e-${esc(e.id)}"><i class="sbav" style="--c:${corDe(e)}">${esc(iniciais(e.nome))}</i><div><b>${esc(e.nome)}</b><span>${esc(t)}</span></div><em>${acao} ›</em></a>`).join('')}</div>${pend.length>6 ? `<button type="button" class="btn sm opmais" onclick="st.verTodasPend=!st.verTodasPend; desenharVisao()">${st.verTodasPend ? 'Mostrar menos' : `Ver todas (${pend.length})`}</button>` : ''}`
+      ${pend.length ? `<div class="olist">${pend.slice(0,st.verTodasPend ? 999 : 6).map(([e,t,acao])=>`<a class="oitem" href="#e-${esc(e.id)}">${avHTML(e,'sbav','i')}<div><b>${esc(e.nome)}</b><span>${esc(t)}</span></div><em>${acao} ›</em></a>`).join('')}</div>${pend.length>6 ? `<button type="button" class="btn sm opmais" onclick="st.verTodasPend=!st.verTodasPend; desenharVisao()">${st.verTodasPend ? 'Mostrar menos' : `Ver todas (${pend.length})`}</button>` : ''}`
         : `<div class="ook">${ICON.check}<span>Todas as empresas receberam a planilha de hoje (${dataCurta(hojeIso)}) e têm acesso liberado.</span></div>`}
     </div>`;
 }
