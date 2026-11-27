@@ -4,6 +4,7 @@
 // POST   ?empresa=&acao=lancamentos        {itens:[{c,b,d,p,v,m?}], saldos:[{conta,d,s,o}], manualPrevalece?}
 // POST   ?empresa=&acao=config             {regras:[{b,o,p,c}], depara:[{c,k}]}  (substitui tudo)
 // POST   ?empresa=&acao=regra              {b, p, c}  nova regra no topo da lista do banco
+// PUT    ?empresa=&acao=regras             {banco, regras:[{p,c}], log}  substitui as regras de um banco (na ordem)
 // PUT    ?empresa=&acao=manual             {chaves:[], classe}  classificação manual (vazio = volta para a regra)
 // PUT    ?empresa=&acao=depara             {classe, categoria}
 // PUT    ?empresa=&acao=mes                {mes:'AAAA-MM', faturamento, rendimento}
@@ -100,6 +101,17 @@ export default rota(async (req, res) => {
     await sql`insert into ext_regra (empresa_id, banco, ordem, padrao, classe) values (${emp}, ${b.b}, ${m.o - 1}, ${padrao}, ${classe})`;
     await registrar(`Regra criada: "${padrao}" → ${classe}`, { banco: b.b });
     return res.status(201).json({ ok: true });
+  }
+  if (req.method === 'PUT' && acao === 'regras') {
+    if (!BANCO_OK.test(b.banco || '')) throw new HttpError(400, 'Banco inválido.');
+    const lista = (Array.isArray(b.regras) ? b.regras : []).slice(0, 5000).map((r, n) => ({ empresa_id: emp, banco: b.banco, ordem: n + 1, padrao: texto(r.p, 200), classe: texto(r.c, 80) }));
+    if (lista.some(r => !r.padrao || !r.classe)) throw new HttpError(400, 'Toda regra precisa de palavra-chave e classificação.');
+    await sql.begin(async t => {
+      await t`delete from ext_regra where empresa_id = ${emp} and banco = ${b.banco}`;
+      if (lista.length) await t`insert into ext_regra ${t(lista)} on conflict do nothing`;
+    });
+    await registrar(texto(b.log, 300) || `Regras do banco atualizadas (${lista.length})`, { banco: b.banco });
+    return res.json({ regras: lista.length });
   }
   if (req.method === 'PUT' && acao === 'manual') {
     const chaves = (Array.isArray(b.chaves) ? b.chaves : []).map(String).slice(0, 5000);

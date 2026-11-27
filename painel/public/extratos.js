@@ -582,6 +582,7 @@ function xlBarra(){
   $('xlFonte').value = e.fn || ''; $('xlTam').value = e.fs || '';
   $('xlCorT').value = XL_COR.test(e.c||'') ? e.c : '#1d1d1f'; $('xlCorF').value = XL_COR.test(e.f||'') ? e.f : '#fff2cc';
   $('xlCorT').parentElement.style.setProperty('--cc', $('xlCorT').value); $('xlCorF').parentElement.style.setProperty('--cc', $('xlCorF').value);
+  $('xlRegTools').hidden = !aba || aba.id!=='regras';
   $('xlGradeB').classList.toggle('on', !F.semGrade); $('xlFiltroB').classList.toggle('on', !!F.filtro);
   const nf = F.filtro && F.f ? Object.keys(F.f).length : 0; $('xlLimparF').hidden = !(nf || (F.filtro && F.o));
   const s = XL.sel; $('xlSelInfo').textContent = !s ? 'Nada selecionado' : s.modo==='tudo' ? 'Planilha inteira' : s.modo==='col'
@@ -638,17 +639,22 @@ function extAbasPlanilha(){
       rows:ls.map(l=>{ const im = imps.get(l.i);
         return [l.d, l.p, l.v, l.cls || 'A CLASSIFICAR', l.m ? 'ajuste manual' : l.reg ? `regra: "${l.reg.p}"` : 'nenhuma regra pegou', l.cls ? (l.cat===undefined ? '(sem linha da DRE)' : (norm(l.cat) ? l.cat : 'fora da DRE (//)')) : '—',
           +l.d.slice(5,7), im ? `${im.arquivo||''} · ${quando(im.criado)}` : 'antes do log']; }),
-      meta:ls.map(l=>l.i||null), alerta:ls.map(l=>!l.cls), keys:ls.map(l=>l.c) });
+      meta:ls.map(l=>l.i||null), alerta:ls.map(l=>!l.cls), keys:ls.map(l=>l.c), ref:ls,
+      editar:{ 3:{ lista:'xlClsLista', dica:'classificação (vira ajuste manual; deixe vazio para voltar à regra)', salvar:(i, v)=>xlSalvarManual(ls[i], v) } } });
   }
   const usoRegra = new Map(); for(const l of D.lanc) if(l.reg) usoRegra.set(l.reg, (usoRegra.get(l.reg)||0)+1);
   const regras = D.regras.slice().sort((a,b)=>a.b.localeCompare(b.b) || a.o-b.o);
   abas.push({ id:'regras', nome:'REGRAS', cols:[{t:'Banco',w:110},{t:'Ordem',w:60,k:'int'},{t:'Palavra-chave (* = qualquer texto)',w:320},{t:'Classificação',w:220},{t:'Lançamentos que ela pega',w:170,k:'int'}],
-    rows:regras.map((r,i)=>[extNomeBanco(r.b), regras.filter(x=>x.b===r.b).indexOf(r)+1, r.p, r.c, usoRegra.get(r)||0]), keys:regras.map(r=>r.b+'|'+r.p) });
+    rows:regras.map((r,i)=>[extNomeBanco(r.b), regras.filter(x=>x.b===r.b).indexOf(r)+1, r.p, r.c, usoRegra.get(r)||0]), keys:regras.map(r=>r.b+'|'+r.p), ref:regras,
+    editar:{ 1:{ dica:'posição da regra (a 1ª que pegar vale)', salvar:(i, v)=>xlMoverRegra(regras[i], +v) },
+             2:{ dica:'palavra-chave (* = qualquer texto)', salvar:(i, v)=>xlMudarRegra(regras[i], { p:v }) },
+             3:{ lista:'xlClsLista', dica:'classificação', salvar:(i, v)=>xlMudarRegra(regras[i], { c:v }) } } });
   const porCls = {}; for(const l of D.lanc) if(l.cls){ const k=extChaveClasse(l.cls); const x=porCls[k]=porCls[k]||{n:0,t:0}; x.n++; x.t+=l.v; }
   const classes = [...new Set([...D.depara.map(x=>extChaveClasse(x.c)), ...Object.keys(porCls)])].sort();
   const dpm = new Map(D.depara.map(x=>[extChaveClasse(x.c), x.k]));
   abas.push({ id:'depara', nome:'DEPARA', soma:3, cols:[{t:'Classificação (DE)',w:240},{t:'Linha da DRE (PARA)',w:240},{t:'Lançamentos',w:100,k:'int'},{t:'Total (R$)',w:130,k:'num'}],
-    rows:classes.map(c=>[c, dpm.get(c) ?? '(sem linha da DRE)', (porCls[c]||{}).n||0, Math.round(((porCls[c]||{}).t||0)*100)/100]), alerta:classes.map(c=>!dpm.has(c)), keys:classes });
+    rows:classes.map(c=>[c, dpm.get(c) ?? '(sem linha da DRE)', (porCls[c]||{}).n||0, Math.round(((porCls[c]||{}).t||0)*100)/100]), alerta:classes.map(c=>!dpm.has(c)), keys:classes, ref:classes,
+    editar:{ 1:{ lista:'xlDreLista', dica:'linha da DRE (// = fica fora da DRE)', salvar:(i, v)=>xlSalvarDepara(classes[i], v) } } });
   if(M){
     const ano = M.ano, res = {};
     for(const l of D.lanc){ if(+l.d.slice(0,4)!==ano) continue; const k = l.cls ? extChaveClasse(l.cls) : 'A CLASSIFICAR'; (res[k] = res[k] || Array(12).fill(0))[+l.d.slice(5,7)-1] += l.v; }
@@ -696,6 +702,9 @@ function extAbrirPlanilha(op={}){
         <button type="button" id="xlGradeB" class="xltg" title="Mostrar ou esconder as linhas de grade">Linhas de grade</button>
         <button type="button" id="xlFiltroB" class="xltg" title="Liga os filtros no cabeçalho das colunas">Filtros</button>
         <button type="button" id="xlLimparF" hidden>Limpar filtros</button>
+        <span class="xlregras" id="xlRegTools" hidden><span class="xlsep"></span>
+          <button type="button" id="xlRegNova" class="xltg">+ Nova regra</button><button type="button" id="xlRegSobe" title="Subir a regra (vale antes)">↑ Subir</button>
+          <button type="button" id="xlRegDesce" title="Descer a regra">↓ Descer</button><button type="button" id="xlRegDel" title="Excluir a regra selecionada">Excluir regra</button></span>
         <span class="xlselinfo" id="xlSelInfo"></span>
       </div>
       <div class="xlbody" id="xlBody"></div><div class="xlstatus" id="xlStatus"></div><div class="xltabs" id="xlTabs"></div>`;
@@ -718,6 +727,8 @@ function extAbrirPlanilha(op={}){
     $('xlLimparFmt').onclick = () => xlAplicar(null);
     $('xlGradeB').onclick = () => { const F = xlFmtAba(); F.semGrade = !F.semGrade || undefined; xlDesenhar(); xlSalvarFmt(); };
     $('xlFiltroB').onclick = () => { const F = xlFmtAba(); F.filtro = !F.filtro || undefined; XL.sel = null; xlDesenhar(); xlSalvarFmt(); };
+    $('xlRegNova').onclick = xlNovaRegra; $('xlRegDel').onclick = xlExcluirRegra;
+    $('xlRegSobe').onclick = () => xlSubirRegra(-1); $('xlRegDesce').onclick = () => xlSubirRegra(1);
     $('xlLimparF').onclick = () => { const F = xlFmtAba(); delete F.f; delete F.o; XL.sel = null; xlDesenhar(); xlSalvarFmt(); };
     // teclado: setas movem a seleção (Shift estende), Ctrl+B/I/U formatam, Ctrl+C copia
     document.addEventListener('keydown', e=>{
@@ -725,6 +736,10 @@ function extAbrirPlanilha(op={}){
       const k = e.key.toLowerCase(), aba = xlAbaAtual(); if(!aba) return;
       if((e.ctrlKey || e.metaKey) && ['b','i','u'].includes(k)){ e.preventDefault(); xlAplicar({ [k]: !xlEstiloAtivo()[k] }); return; }
       if((e.ctrlKey || e.metaKey) && k==='c'){ e.preventDefault(); xlCopiar(); return; }
+      if(XL.sel.modo==='cel' && aba.editar && aba.editar[XL.sel.j0]){
+        if(k==='enter' || k==='f2'){ e.preventDefault(); xlEditar(XL.sel.k0, XL.sel.j0); return; }
+        if(e.key.length===1 && !e.ctrlKey && !e.metaKey && !e.altKey){ e.preventDefault(); xlEditar(XL.sel.k0, XL.sel.j0, e.key); return; }
+      }
       const mv = { arrowup:[-1,0], arrowdown:[1,0], arrowleft:[0,-1], arrowright:[0,1] }[k]; if(!mv) return;
       e.preventDefault(); const s = XL.sel; if(s.modo!=='cel'){ s.modo='cel'; s.k0 = s.k0||0; s.j0 = s.j0||0; }
       const nk = Math.max(0, Math.min(XL.idx.length-1, (e.shiftKey ? s.k1 : s.k0) + mv[0])), nj = Math.max(0, Math.min(aba.cols.length-1, (e.shiftKey ? s.j1 : s.j0) + mv[1]));
@@ -754,7 +769,8 @@ function xlDesenhar(){
   const soma = aba.soma!=null ? idx.reduce((t,i)=>t+(+aba.rows[i][aba.soma]||0),0) : null;
   const nf = F.filtro && F.f ? Object.keys(F.f).length : 0;
   $('xlStatus').textContent = `${idx.length.toLocaleString('pt-BR')} de ${aba.rows.length.toLocaleString('pt-BR')} linha(s)` + (nf ? ` · ${nf} filtro(s) ativo(s)` : '') + (soma!=null ? ` · Soma de "${aba.cols[aba.soma].t}": ${brl(soma)}` : '')
-    + (aba.meta && XL.imp && aba.meta.includes(XL.imp) ? ` · em amarelo: lançamentos da importação selecionada no Log` : '');
+    + (aba.meta && XL.imp && aba.meta.includes(XL.imp) ? ` · em amarelo: lançamentos da importação selecionada no Log` : '')
+    + (aba.editar ? ` · dois cliques (ou Enter) para editar: ${Object.entries(aba.editar).map(([j,e])=>`${xlLetra(+j)} (${e.dica.split(' (')[0]})`).join(', ')}` : '');
 }
 function xlCelula(v, c, css, sel){
   const st = css ? ` style="${css}"` : '', sc = sel ? ' sel' : '';
@@ -768,6 +784,116 @@ function xlNaSel(k, j){ const s = XL.sel; if(!s) return false;
   if(s.modo==='tudo') return true;
   const dentroK = k >= Math.min(s.k0,s.k1) && k <= Math.max(s.k0,s.k1), dentroJ = j >= Math.min(s.j0,s.j1) && j <= Math.max(s.j0,s.j1);
   return s.modo==='col' ? dentroJ : s.modo==='lin' ? dentroK : dentroK && dentroJ; }
+/* ---------- edição pela planilha: regras, de-para e classificação ---------- */
+function xlListas(){
+  const D = st.ext.D;
+  const cls = [...new Set([...D.depara.map(x=>x.c), ...D.regras.map(r=>r.c)].map(extChaveClasse))].sort();
+  const dre = [...new Set(D.depara.map(x=>x.k).filter(Boolean)), '//'].sort();
+  let dl = $('xlListas'); if(!dl){ dl = document.createElement('div'); dl.id = 'xlListas'; dl.hidden = true; document.body.append(dl); }
+  dl.innerHTML = `<datalist id="xlClsLista">${cls.map(c=>`<option value="${esc(c)}">`).join('')}</datalist><datalist id="xlDreLista">${dre.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`;
+}
+function xlEditar(k, j, inicial){
+  const aba = xlAbaAtual(); if(!aba) return; const ed = aba.editar && aba.editar[j];
+  if(!ed){ if(aba.editar) toast('Esta coluna não é editável. Dá para editar: ' + Object.values(aba.editar).map(e=>e.dica.split(' (')[0]).join(', ') + '.'); return; }
+  const i = XL.idx[k], tr = document.querySelector(`#xlBody tbody tr[data-k="${k}"]`), td = tr && tr.children[j+1]; if(i==null || !td) return;
+  document.querySelectorAll('.xled').forEach(x=>x.remove()); xlListas();
+  const r = td.getBoundingClientRect(), orig = aba.rows[i][j] == null ? '' : String(aba.rows[i][j]);
+  const inp = document.createElement('input'); inp.className = 'xled'; inp.value = inicial != null ? inicial : (orig==='A CLASSIFICAR' ? '' : orig); inp.title = ed.dica; inp.placeholder = ed.dica;
+  if(ed.lista) inp.setAttribute('list', ed.lista);
+  Object.assign(inp.style, { left:r.left+'px', top:r.top+'px', width:Math.max(r.width, 260)+'px', height:r.height+'px' });
+  document.body.append(inp); inp.focus(); if(inicial == null) inp.select();
+  let feito = false;
+  const sair = async (salvar) => { if(feito) return; feito = true; const v = inp.value.trim(); inp.remove();
+    if(!salvar || v === orig) return;
+    try{ await ed.salvar(i, v); }catch(err){ falha(err); } };
+  inp.addEventListener('keydown', e=>{ e.stopPropagation(); if(e.key==='Enter'){ e.preventDefault(); sair(true); } else if(e.key==='Escape'){ e.preventDefault(); sair(false); } });
+  inp.addEventListener('blur', ()=>sair(true));
+}
+// depois de mudar regra/de-para/classificação: reclassifica tudo e conta o que mudou
+function xlRecalcular(antes, msg){
+  const sel = XL.sel, aba = XL.aba;
+  XL.abas = extAbasPlanilha(); XL.aba = aba; XL.sel = sel;
+  const mud = st.ext.D.lanc.filter(l=>antes.get(l.c) !== (l.cls || null)).length;
+  xlDesenhar(); XL.sel = sel; if(XL.repintar) XL.repintar(); xlBarra();
+  toast(`${msg} · ${mud ? mud.toLocaleString('pt-BR') + ' lançamento(s) mudaram de classificação' : 'nenhum lançamento mudou de classificação'}`);
+  try{ desenharExtratos(); }catch(e){} extMarcarDesatualizado();
+}
+const xlFotoCls = () => new Map(st.ext.D.lanc.map(l=>[l.c, l.cls || null]));
+async function xlSalvarRegras(banco, lista, desc){
+  const D = st.ext.D, antes = xlFotoCls();
+  await extApi('regras', {method:'PUT', body:{ banco, regras:lista.map(r=>({ p:r.p, c:r.c })), log:desc }});
+  D.regras = D.regras.filter(r=>r.b!==banco).concat(lista.map((r,n)=>({ b:banco, o:n+1, p:r.p, c:r.c })));
+  D.imports = [{ id:'local'+Date.now(), criado:new Date().toISOString(), tipo:'ajuste', arquivo:desc, banco }, ...(D.imports||[])];
+  xlRecalcular(antes, desc);
+}
+const xlRegrasDo = b => st.ext.D.regras.filter(r=>r.b===b).sort((x,y)=>x.o-y.o).map(r=>({ p:r.p, c:r.c }));
+const xlPosRegra = r => st.ext.D.regras.filter(x=>x.b===r.b).sort((x,y)=>x.o-y.o).indexOf(r);
+async function xlMudarRegra(r, novo){
+  const lista = xlRegrasDo(r.b), n = xlPosRegra(r); if(n < 0) return;
+  if(novo.c) novo.c = extLimpa(novo.c).toUpperCase();
+  if(novo.p === '' || novo.c === '') return toast('A regra precisa de palavra-chave e classificação. Para apagar, use "Excluir regra".');
+  const de = lista[n]; lista[n] = { ...de, ...novo };
+  await xlSalvarRegras(r.b, lista, novo.p != null ? `Regra editada (${extNomeBanco(r.b)}): "${de.p}" → "${novo.p}"` : `Regra editada (${extNomeBanco(r.b)}): "${de.p}" agora classifica como ${novo.c} (antes ${de.c})`);
+}
+async function xlMoverRegra(r, pos){
+  const lista = xlRegrasDo(r.b), n = xlPosRegra(r); if(n < 0 || !(pos >= 1)) return toast('Informe a posição (1 = primeira).');
+  const p = Math.min(lista.length, Math.round(pos)) - 1; if(p === n) return;
+  const [x] = lista.splice(n, 1); lista.splice(p, 0, x);
+  await xlSalvarRegras(r.b, lista, `Regra "${x.p}" (${extNomeBanco(r.b)}) movida da posição ${n+1} para ${p+1}`);
+}
+async function xlSalvarDepara(classe, cat){
+  if(!cat) return toast('Informe a linha da DRE (ou // para deixar fora da DRE).');
+  const D = st.ext.D, antes = xlFotoCls();
+  await extApi('depara', {method:'PUT', body:{ classe, categoria:cat }});
+  const x = D.depara.find(d=>extChaveClasse(d.c)===classe); if(x) x.k = cat; else D.depara.push({ c:classe, k:cat });
+  xlRecalcular(antes, `De-para: ${classe} → ${cat}`);
+}
+async function xlSalvarManual(l, v){
+  const D = st.ext.D, antes = xlFotoCls(), cls = v ? extLimpa(v).toUpperCase() : '';
+  await extApi('manual', {method:'PUT', body:{ chaves:[l.c], classe:cls, texto:l.p }});
+  l.m = cls || null;
+  xlRecalcular(antes, cls ? `Lançamento classificado como ${cls}` : 'Lançamento voltou para a regra');
+}
+// barra de regras (aparece na aba REGRAS)
+function xlRegraSel(){ const aba = xlAbaAtual(), s = XL.sel; if(!aba || aba.id!=='regras' || !s || s.modo==='col' || s.modo==='tudo') return null; return aba.ref[XL.idx[Math.min(s.k0,s.k1)]] || null; }
+async function xlNovaRegra(){
+  document.querySelectorAll('.xlpop').forEach(x=>x.remove()); xlListas();
+  const D = st.ext.D, base = xlRegraSel(), bancos = [...new Set([...D.lanc.map(l=>l.b), ...D.regras.map(r=>r.b)])];
+  if(!bancos.length) return toast('Importe um extrato ou a planilha de referência primeiro.');
+  const pop = document.createElement('div'); pop.className = 'xlpop xlnova';
+  pop.innerHTML = `<b>Nova regra</b>
+    <label>Banco<select class="xn-b">${bancos.map(b=>`<option value="${b}"${base && base.b===b?' selected':''}>${esc(extNomeBanco(b))}</option>`).join('')}</select></label>
+    <label>Palavra-chave <small>(* = qualquer texto)</small><input class="xn-p" placeholder="ex.: Pix*Enviado ou NOME DO FORNECEDOR"></label>
+    <label>Classificação<input class="xn-c" list="xlClsLista" placeholder="escolha ou digite uma nova"></label>
+    <label>Posição<select class="xn-o"><option value="topo">No topo (vale antes das outras)</option>${base ? `<option value="abaixo" selected>Logo abaixo da selecionada (${xlPosRegra(base)+1})</option>` : ''}<option value="fim">No fim</option></select></label>
+    <small class="xn-info"></small>
+    <div class="xlpop-b"><button type="button" class="btn sm" data-x>Cancelar</button><button type="button" class="btn sm primary" data-ok>Criar regra</button></div>`;
+  document.body.append(pop);
+  const r = $('xlRegNova').getBoundingClientRect(); pop.style.width = '300px'; pop.style.left = Math.max(8, Math.min(r.left, innerWidth - 308)) + 'px'; pop.style.top = (r.bottom + 4) + 'px';
+  const q = c => pop.querySelector(c), conta = () => { const p = q('.xn-p').value.trim(), b = q('.xn-b').value;
+    q('.xn-info').textContent = p ? `Pega ${D.lanc.filter(l=>l.b===b && extPadrao(p).test(extTextoRegra(l))).length.toLocaleString('pt-BR')} lançamento(s) deste banco` : ''; };
+  q('.xn-p').oninput = conta; q('.xn-b').onchange = conta; q('.xn-p').focus();
+  pop.addEventListener('keydown', e=>{ e.stopPropagation(); if(e.key==='Escape') pop.remove(); if(e.key==='Enter') q('[data-ok]').click(); });
+  q('[data-x]').onclick = () => pop.remove();
+  q('[data-ok]').onclick = async () => {
+    const b = q('.xn-b').value, p = q('.xn-p').value.trim(), c = extLimpa(q('.xn-c').value).toUpperCase(), o = q('.xn-o').value;
+    if(!p || !c) return toast('Preencha a palavra-chave e a classificação.');
+    const lista = xlRegrasDo(b), pos = o==='topo' ? 0 : o==='fim' ? lista.length : (base && base.b===b ? xlPosRegra(base)+1 : 0);
+    lista.splice(pos, 0, { p, c }); pop.remove();
+    try{ await xlSalvarRegras(b, lista, `Regra criada (${extNomeBanco(b)}, posição ${pos+1}): "${p}" → ${c}`); }catch(err){ falha(err); }
+  };
+}
+async function xlExcluirRegra(){
+  const r = xlRegraSel(); if(!r) return toast('Selecione a regra (clique na linha) primeiro.');
+  if(!await confirmar('Excluir esta regra?', `"${r.p}" → ${r.c} (${extNomeBanco(r.b)}). Os lançamentos que ela pegava passam para a próxima regra que servir, ou ficam "A classificar".`, 'Excluir')) return;
+  const lista = xlRegrasDo(r.b); lista.splice(xlPosRegra(r), 1);
+  try{ XL.sel = null; await xlSalvarRegras(r.b, lista, `Regra excluída (${extNomeBanco(r.b)}): "${r.p}" → ${r.c}`); }catch(err){ falha(err); }
+}
+async function xlSubirRegra(d){
+  const r = xlRegraSel(); if(!r) return toast('Selecione a regra (clique na linha) primeiro.');
+  const n = xlPosRegra(r); if(n + d < 0 || n + d >= xlRegrasDo(r.b).length) return;
+  try{ await xlMoverRegra(r, n + 1 + d); if(XL.sel){ XL.sel.k0 += d; XL.sel.k1 = XL.sel.k0; XL.repintar && XL.repintar(true); } }catch(err){ falha(err); }
+}
 function xlCopiar(){
   const aba = xlAbaAtual(), s = XL.sel; if(!aba || !s) return;
   const ks = s.modo==='col' || s.modo==='tudo' ? XL.idx.map((_,k)=>k) : Array.from({length:Math.abs(s.k1-s.k0)+1}, (_,n)=>Math.min(s.k0,s.k1)+n);
@@ -815,6 +941,8 @@ function xlGrade(box, aba, idx){
     if(p.j < 0){ XL.sel = e.shiftKey && XL.sel && XL.sel.modo==='lin' ? { ...XL.sel, k1:p.k } : { modo:'lin', k0:p.k, k1:p.k, j0:0, j1:0 }; arrasta = 'lin'; }
     else { XL.sel = e.shiftKey && XL.sel && XL.sel.modo==='cel' ? { ...XL.sel, k1:p.k, j1:p.j } : { modo:'cel', k0:p.k, j0:p.j, k1:p.k, j1:p.j }; arrasta = 'cel'; }
     pintar(true); xlBarra();
+    // dois cliques numa célula editável abre a edição (a tabela é redesenhada a cada clique, então não dá para usar o dblclick)
+    if(e.detail === 2 && p.j >= 0 && !e.shiftKey){ arrasta = false; xlEditar(p.k, p.j); }
   });
   sc.addEventListener('mouseover', e=>{
     if(!arrasta || !XL.sel) return;
