@@ -88,7 +88,7 @@ function abrirForm(emp){
   editId = emp? emp.id : null;
   $('mEmpT').textContent = emp? 'Editar empresa' : 'Nova empresa';
   $('iNome').value=emp?.nome||''; $('iCnpj').value=emp?.cnpj||''; $('iCont').value=emp?.contato||'';
-  $('iSenhaCli').value=''; $('iPos').checked = emp ? emp.posicao!==false : true; $('iContas').checked = !!(emp && emp.contas); $('iContratos').checked = !!(emp && emp.contratos); $('iRepasses').checked = !!(emp && emp.repasses);
+  $('iSenhaCli').value=''; $('iPos').checked = emp ? emp.posicao!==false : true; $('iContas').checked = !!(emp && emp.contas); $('iContratos').checked = !!(emp && emp.contratos); $('iRepasses').checked = !!(emp && emp.repasses); $('iExtratos').checked = !!(emp && emp.extratos);
   const precisa = !emp || !emp.temSenha;
   $('lSenha').textContent = precisa ? 'Senha do cliente *' : 'Nova senha do cliente';
   $('iSenhaCli').placeholder = precisa ? 'mín. 4 caracteres' : 'deixe em branco para manter a atual';
@@ -110,7 +110,7 @@ const senhasNovas = new Map(); // senha recém-definida, só nesta aba, para cop
 $('fEmp').onsubmit = async ev => {
   ev.preventDefault();
   const body={ nome:$('iNome').value.trim(), cnpj:$('iCnpj').value.trim(), contato:$('iCont').value.trim(), cor:corSel,
-    posicao:$('iPos').checked, contas:$('iContas').checked, contratos:$('iContratos').checked, repasses:$('iRepasses').checked, senha:$('iSenhaCli').value.trim() };
+    posicao:$('iPos').checked, contas:$('iContas').checked, contratos:$('iContratos').checked, repasses:$('iRepasses').checked, extratos:$('iExtratos').checked, senha:$('iSenhaCli').value.trim() };
   if(!body.nome) return;
   if(body.senha && body.senha.length<4) return toast('A senha precisa ter pelo menos 4 caracteres.');
   $('bSave').disabled=true;
@@ -118,7 +118,7 @@ $('fEmp').onsubmit = async ev => {
     if(editId){
       st.emp = await api('empresas?id='+editId,{method:'PUT', body});
       if(body.senha) senhasNovas.set(editId, body.senha);
-      st.rendered=null; cabecalho(); await carregarContas(); await carregarContratos(); await carregarRepasses(); escolherVersao(); toast(body.senha?'Empresa atualizada. Senha nova ativa.':'Empresa atualizada');
+      st.rendered=null; cabecalho(); await carregarContas(); await carregarContratos(); await carregarRepasses(); await carregarExtratos(); escolherVersao(); toast(body.senha?'Empresa atualizada. Senha nova ativa.':'Empresa atualizada');
     } else {
       const e = await api('empresas',{method:'POST', body}); if(body.senha) senhasNovas.set(e.id, body.senha);
       location.hash='e-'+e.id; toast('Empresa cadastrada. Agora arraste a planilha.');
@@ -149,7 +149,7 @@ async function abrirEmpresa(id){
   try{
     const emp = await api('empresas?id='+id); if(seq!==st.seq) return;
     st.emp=emp; cabecalho();
-    await Promise.all([carregarContas(), carregarContratos(), carregarRepasses(), carregarHistorico()]);
+    await Promise.all([carregarContas(), carregarContratos(), carregarRepasses(), carregarHistorico(), carregarExtratos()]);
     if(seq===st.seq) desenharExtras();
     (window.requestIdleCallback || setTimeout)(()=>carregarXLSX().catch(()=>{}));
   }catch(e){
@@ -167,6 +167,7 @@ function cabecalho(){
   $('contasBox').hidden = !e.contas;
   $('contratosBox').hidden = !e.contratos;
   $('repBox').hidden = !e.repasses;
+  $('extBox').hidden = !e.extratos;
   desenharLateral();
   document.title=e.nome+' · Evolução Financeira';
   if(!$('shareBox').hidden) preencherShare();
@@ -532,6 +533,7 @@ function desenharLateral(){
     document.querySelector('[data-ir="contasBox"]').hidden = !st.emp.contas;
     document.querySelector('[data-ir="contratosBox"]').hidden = !st.emp.contratos;
     document.querySelector('[data-ir="repBox"]').hidden = !st.emp.repasses;
+    document.querySelector('[data-ir="extBox"]').hidden = !st.emp.extratos;
   }
 }
 

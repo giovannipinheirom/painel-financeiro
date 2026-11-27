@@ -15,7 +15,7 @@ export class HttpError extends Error {
 
 // Cria as tabelas na primeira chamada (não precisa rodar SQL na mão).
 let pronto = null;
-const VERSAO_BANCO = 6;
+const VERSAO_BANCO = 7;
 async function migrar() {
   try {
     const [v] = await sql`select v from esquema_versao limit 1`;
@@ -95,6 +95,32 @@ async function criarTabelas() {
     conta text
   )`;
   await sql`create index if not exists repasses_empresa_sol on repasses (empresa_id, solicitado)`;
+  // v7: painel a partir dos extratos bancários
+  await sql`alter table empresas add column if not exists extratos boolean not null default false`;
+  await sql`create table if not exists ext_lanc (
+    empresa_id text not null references empresas(id) on delete cascade,
+    chave text not null, banco text not null, data date not null,
+    partes text not null, valor numeric(14,2) not null, manual text,
+    primary key (empresa_id, chave))`;
+  await sql`create index if not exists ext_lanc_data on ext_lanc (empresa_id, data)`;
+  await sql`create table if not exists ext_regra (
+    empresa_id text not null references empresas(id) on delete cascade,
+    banco text not null, ordem int not null, padrao text not null, classe text not null,
+    primary key (empresa_id, banco, ordem))`;
+  await sql`create table if not exists ext_depara (
+    empresa_id text not null references empresas(id) on delete cascade,
+    classe text not null, categoria text not null, primary key (empresa_id, classe))`;
+  await sql`create table if not exists ext_saldo (
+    empresa_id text not null references empresas(id) on delete cascade,
+    conta text not null, data date not null, saldo numeric(14,2) not null, origem text,
+    primary key (empresa_id, conta, data))`;
+  await sql`create table if not exists ext_mes (
+    empresa_id text not null references empresas(id) on delete cascade,
+    mes text not null, faturamento numeric(14,2), rendimento numeric(14,2), primary key (empresa_id, mes))`;
+  await sql`create table if not exists ext_carteira (
+    empresa_id text not null references empresas(id) on delete cascade,
+    banco text not null, nome text not null, classe text, vencimento date, valor numeric(14,2) not null)`;
+  await sql`create index if not exists ext_carteira_emp on ext_carteira (empresa_id, banco)`;
   // v6: PDF anexado a uma conta a pagar (boleto, nota etc.)
   await sql`create table if not exists conta_anexos (
     conta_id text primary key references contas_pagar(id) on delete cascade,

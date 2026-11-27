@@ -30,6 +30,7 @@
     <div id="sbEmpNav" hidden>
       <div class="sbh"><span id="sbEmpNome">Nesta empresa</span></div>
       <a class="sbi" href="#" data-ir="adminrow" data-ic="upload"><span>Planilha e histórico</span></a>
+      <a class="sbi" href="#" data-ir="extBox" data-ic="bank"><span>Extratos bancários</span></a>
       <a class="sbi" href="#" data-ir="contasBox" data-ic="cal"><span>Contas a pagar</span></a>
       <a class="sbi" href="#" data-ir="contratosBox" data-ic="sign"><span>Contratos</span></a>
       <a class="sbi" href="#" data-ir="repBox" data-ic="users"><span>Repasses</span></a>
@@ -112,6 +113,23 @@
       <div id="repLista"></div>
       <small class="hint" id="repInfo">O prazo de pagamento é contado em dias úteis a partir da solicitação (sem fins de semana e feriados nacionais, bancários e da cidade de São Paulo).</small>
     </div>
+    <div class="ctrbox extbox" id="extBox" hidden>
+      <div class="cbh"><h3>Extratos bancários</h3><span class="cbs" id="extResumo"></span>
+        <input type="file" id="extFile" accept=".xls,.xlsx,.csv,.txt" multiple hidden>
+        <input type="file" id="extPlan" accept=".xlsb,.xlsx,.xlsm,.xls" hidden>
+        <button class="btn sm" id="bExtPlan" type="button">Importar planilha de referência</button>
+        <button class="btn sm primary" id="bExtGerar" type="button">Atualizar painel</button></div>
+      <div class="repdrop" id="extDrop"><b>Arraste aqui os extratos baixados do banco</b><span>BB, Sicredi, Stone e Cora, do jeito que o banco gera (Excel ou CSV). Pode mandar vários de uma vez e períodos repetidos: o que já foi importado é reconhecido e não duplica. O painel é atualizado sozinho.</span></div>
+      <div id="extBancos" class="extbancos"></div>
+      <div id="extPend"></div>
+      <details class="extsec"><summary>Faturamento e rendimentos por mês</summary><div id="extMeses"></div></details>
+      <details class="extsec"><summary>Saldos iniciais das contas</summary><div id="extSaldos"></div></details>
+      <details class="extsec"><summary>Posição de clientes</summary>
+        <div class="extcart"><label>Banco <select id="extCartBanco"></select></label>
+          <textarea id="extCartTxt" placeholder="Cole aqui as colunas copiadas do Excel: nome · classificação · vencimento · valor"></textarea>
+          <div class="mact" style="margin-top:8px"><small class="hint" id="extCartInfo" style="margin:0 auto 0 0"></small><button class="btn sm primary" id="bExtCart" type="button">Salvar carteira</button></div>
+          <small class="hint">Cada vez que você cola, a carteira daquele banco é substituída. "Recebido" (ou pago) conta como recebido; com vencimento passado conta como vencido; o resto, em aberto.</small></div></details>
+    </div>
     <div class="err" id="err" hidden></div>
     <div class="toolbar" id="tbar" hidden>
       <div class="seg" id="mode"><button data-m="mensal" class="on">Mensal</button><button data-m="trimestral">Trimestral</button><button data-m="anual">Anual</button></div>
@@ -135,6 +153,7 @@
     <small class="hint" id="hSenha">É a senha que o cliente digita para abrir o painel. Anote antes de salvar: por segurança ela não fica visível depois.</small></label>
   <label class="chk"><input type="checkbox" id="iPos" checked><span>Incluir <b>Posição de clientes</b><small>Página com quanto há a receber em cada banco (em aberto + vencido).</small></span></label>
   <label class="chk"><input type="checkbox" id="iContas"><span>Incluir <b>Calendário de contas a pagar</b><small>Você cadastra os boletos (recebedor, valor e data) e o cliente vê um calendário, que também passa no modo TV.</small></span></label>
+  <label class="chk"><input type="checkbox" id="iExtratos"><span>Painel a partir dos <b>extratos bancários</b><small>Em vez da planilha pronta, você arrasta os extratos do banco e o site classifica e monta o painel (com as regras da planilha de conciliação).</small></span></label>
   <label class="chk"><input type="checkbox" id="iRepasses"><span>Incluir <b>Repasses a fornecedores</b><small>Para quem paga fornecedores depois de uma solicitação (ex.: brechó com peças consignadas). Você importa a planilha de controle e o painel mostra o que vence, o que atrasou e o prazo real.</small></span></label>
   <label class="chk"><input type="checkbox" id="iContratos"><span>Incluir <b>Contratos</b><small>Parcelas de contratos com previsão de pagamentos. As parcelas também entram no calendário de contas.</small></span></label>
   <div class="fld"><span>Cor do card</span><div class="colors" id="iCor"></div></div>
@@ -172,5 +191,6 @@
 <div class="toast" id="toast"></div>
 <script defer src="/report.js"></script>
 <script defer src="/admin.js"></script>
+<script defer src="/extratos.js"></script>
 </body>
 </html>

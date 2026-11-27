@@ -170,6 +170,10 @@ function buildModel(wb){
   const dre=parseDRE(sheetGrid(wb,'DRE FINANCEIRO') || sheetGrid(wb,'D.R.E Gerencial') || sheetGrid(wb,'DRE Gerencial'));
   const gBase=sheetGrid(wb,'Base Dash');
   const base = gBase || !sheetGrid(wb,'D.R.E Gerencial') ? parseBase(gBase) : baseGerencial(wb);
+  return modeloDeGrades(dre, base, anoDaPlanilha(wb), dataLancamentos(wb));
+}
+// monta o modelo do painel a partir da DRE e da base já lidas (planilha ou extratos)
+function modeloDeGrades(dre, base, ano, ate){
   const z=()=>Array(12).fill(0);
   const v = k => (dre.by(k)||{vals:z()}).vals;
   const s = (k, fill=0) => (base.series(k)||Array(12).fill(null)).map(x=>x==null?fill:x);
@@ -187,7 +191,7 @@ function buildModel(wb){
   let sel = num(base.scalar('mes selecionado dash',2)) || ultimo;
 
   return {
-    dre, ano: anoDaPlanilha(wb), ate: dataLancamentos(wb), ultimo, sel,
+    dre, ano, ate, ultimo, sel,
     fat:v('faturamento bruto'), rb:v('receita bruta'), rl:v('resultado liquido'), fin: fin?fin.vals:z(),
     saidas, saidasCats: [...saidasCats, dre.by('distribuicao de dividendos')].filter(Boolean), finKids,
     contas:{ bb:sN('bb conta'), stone:sN('stone'), sic:sN('sicredi conta'), cora:sN('cora'), rende:sN('rende facil bb'), aplSic:sN('aplicacao sicredi') },

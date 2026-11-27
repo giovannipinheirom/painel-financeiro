@@ -1010,3 +1010,26 @@ body::before{transform:translateZ(0);will-change:transform}
 .ag .ev2 .evemp{flex-basis:100%}
 .ag .ev2 b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:600px){ .topright .pill{display:none} }
+
+/* ---------- extratos bancários ---------- */
+#extBox{scroll-margin-top:calc(var(--toph) + 16px)}
+.extbancos{display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 12px}
+.extb{display:flex;flex-direction:column;gap:1px;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.55);box-shadow:inset 0 1px 0 #fff,0 0 0 .5px rgba(48,24,88,.1);min-width:150px}
+.extb b{font-size:14px} .extb span{font-size:12px;color:var(--muted)}
+.extsub{margin:10px 0 14px}
+.extsub h4{font-size:15px;font-weight:600;margin-bottom:8px}
+.extsub h4 span{font-weight:400;font-size:12.5px;color:var(--muted);margin-left:6px}
+.extt td{font-size:13px;vertical-align:middle}
+.extt .extx{max-width:340px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.extt select{max-width:200px}
+.extrg{display:flex;align-items:center;gap:6px}
+.extrg .extpad{width:170px;font:inherit;font-size:13px;padding:6px 8px;border:1px solid #d2d2d7;border-radius:8px;background:rgba(255,255,255,.7)}
+.extsec{margin-top:10px;border-radius:14px;background:rgba(255,255,255,.4);box-shadow:inset 0 0 0 .5px rgba(48,24,88,.1)}
+.extsec summary{cursor:pointer;padding:11px 14px;font-weight:600;font-size:14px}
+.extsec > div{padding:0 14px 14px}
+.extcart label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-bottom:8px}
+.extcart textarea{width:100%;min-height:120px;font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px;border:1px solid #d2d2d7;border-radius:11px;background:rgba(255,255,255,.7);resize:vertical}
+.repdrop.busy{opacity:.55;pointer-events:none}
+.btn.pulsa{animation:pulsa 1.6s ease-in-out infinite}
+@keyframes pulsa{0%,100%{box-shadow:0 6px 18px -6px rgba(144,40,132,.6)}50%{box-shadow:0 0 0 6px rgba(144,40,132,.18),0 6px 18px -6px rgba(144,40,132,.6)}}
+.extt .extcls{width:210px;font:inherit;font-size:13px;padding:6px 8px;border:1px solid #d2d2d7;border-radius:8px;background:rgba(255,255,255,.7)}
