@@ -421,6 +421,7 @@ async function extImportarAgora(files){
   $('extDrop').classList.add('busy'); const res = []; let ultimoImp = null;
   try{
     for(const f of files){
+      if(await extEhPlanilhaReferencia(f)){ await extImportarPlanilha(f); continue; }
       const x = await extLerArquivo(f), D = st.ext.D, existentes = new Set(D.lanc.map(l=>l.c));
       if(!D.regras.some(r=>r.b===x.banco) && !await confirmar(`Nenhuma regra do ${extNomeBanco(x.banco)} nesta empresa`,
         `Esta empresa ainda não tem as regras de classificação do ${extNomeBanco(x.banco)} (elas vêm da planilha de referência). Se importar "${f.name}" agora, tudo entra como "A classificar". O melhor é clicar em "Importar planilha de referência" antes. Importar mesmo assim?`, 'Importar mesmo assim')){ res.push(`${f.name}: não importado`); continue; }
@@ -434,22 +435,28 @@ async function extImportarAgora(files){
       novos.forEach(l=>{ l.i = r.importId; }); D.lanc = D1.lanc; D.saldos = D1.saldos; ultimoImp = r.importId;
       res.push(`${extNomeBanco(x.banco)}: ${r.novos} novo(s)${r.repetidos?`, ${r.repetidos} já importado(s)`:''}`);
     }
-    toast(res.join(' · '));
-    await carregarExtratos(); await extGerarPainel(true);
-    if(ultimoImp) extAbrirPlanilha({ aba:'log', imp:ultimoImp });
+    if(res.length){
+      toast(res.join(' · '));
+      await carregarExtratos(); await extGerarPainel(true);
+      if(ultimoImp) extAbrirPlanilha({ aba:'log', imp:ultimoImp }); }
   }catch(err){ falha(err); }
   $('extDrop').classList.remove('busy'); $('extFile').value='';
 }
 $('extDrop').onclick = () => $('extFile').click();
 $('extFile').onchange = e => extImportarArquivos([...e.target.files]);
 ['dragover','dragenter'].forEach(t=>$('extDrop').addEventListener(t, e=>{ e.preventDefault(); $('extDrop').classList.add('over'); }));
-['dragleave','drop'].forEach(t=>$('extDrop').addEventListener(t, e=>{ e.preventDefault(); $('extDrop').classList.remove('over'); }));
-$('extDrop').addEventListener('drop', e=>extImportarArquivos([...e.dataTransfer.files]));
+['dragleave','drop'].forEach(t=>$('extDrop').addEventListener(t, e=>{ e.preventDefault(); if(t==='drop') e.stopPropagation(); $('extDrop').classList.remove('over'); }));
+$('extDrop').addEventListener('drop', e=>{ e.stopPropagation(); $('drop').classList.remove('over'); extImportarArquivos([...e.dataTransfer.files]); });
 
 // importar a planilha de conciliação (regras, de-para, histórico, saldos, faturamento)
 $('bExtPlan').onclick = () => $('extPlan').click();
-$('extPlan').onchange = async e => {
-  const f = e.target.files[0]; e.target.value=''; if(!f) return;
+$('extPlan').onchange = e => { const f = e.target.files[0]; e.target.value=''; if(f) extFila = extFila.then(()=>extImportarPlanilha(f)); };
+async function extEhPlanilhaReferencia(f){
+  if(!/\.xls[xbm]?$/i.test(f.name)) return false;
+  try{ await carregarXLSX(); const wb = XLSX.read(await f.arrayBuffer(), {type:'array', bookSheets:true});
+    return wb.SheetNames.some(n=>norm(n)==='regras'); }catch(e){ return false; }
+}
+async function extImportarPlanilha(f){
   if(!await confirmar('Importar a planilha de referência?', 'As regras e o de-para da empresa serão substituídos pelos da planilha, e os lançamentos dela entram no histórico (os que já existem não duplicam).', 'Importar')) return;
   $('bExtPlan').disabled = true; toast('Lendo a planilha…');
   try{
@@ -463,14 +470,22 @@ $('extPlan').onchange = async e => {
     await carregarExtratos(); await extGerarPainel(true);
   }catch(err){ falha(err); }
   $('bExtPlan').disabled = false;
-};
+}
 
 // gerar o painel a partir dos lançamentos
 function extMarcarDesatualizado(){ $('bExtGerar').classList.add('pulsa'); $('bExtGerar').textContent = 'Atualizar painel'; }
 async function extGerarPainel(auto){
   if(!st.ext || !st.ext.D.lanc.length) return auto ? null : toast('Importe os extratos primeiro.');
   try{
-    const M = extMontarModelo(st.ext.D), modelo = serializeModel(M.modelo);
+    const D = st.ext.D, M = extMontarModelo(D), pend = M.P.pend.length;
+    const falta = !D.regras.length ? 'a empresa ainda não tem regras de classificação (importe a planilha de referência)'
+      : !D.depara.length ? 'a empresa ainda não tem o de-para das classificações (importe a planilha de referência)'
+      : pend > Math.max(20, D.lanc.length * 0.1) ? `${pend.toLocaleString('pt-BR')} de ${D.lanc.length.toLocaleString('pt-BR')} lançamentos estão sem classificação` : '';
+    if(falta){
+      if(auto){ toast(`O painel NÃO foi atualizado: ${falta}.`); $('bExtGerar').classList.add('pulsa'); return null; }
+      if(!await confirmar('Atualizar o painel mesmo assim?', `Atenção: ${falta}. O painel publicado vai ser substituído por um com esses dados incompletos.`, 'Atualizar mesmo assim')) return null;
+    }
+    const modelo = serializeModel(M.modelo);
     const rel = await api('relatorios', {method:'POST', body:{ empresaId:st.emp.id, arquivo:`Extratos até ${extDataBR(M.ultData)}`, modelo }});
     st.cache.set(rel.id, {...rel, modelo}); st.relId = rel.id; st.m = null; st.rendered = null;
     await carregarHistorico(); st.emp = await api('empresas?id='+st.emp.id); cabecalho();
